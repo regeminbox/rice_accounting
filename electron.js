@@ -27,10 +27,19 @@ function createWindow() {
 
   mainWindow.loadURL(startUrl);
 
-  // 개발자 도구 (개발 모드에서만)
-  if (isDev) {
-    mainWindow.webContents.openDevTools();
-  }
+  // 개발자 도구 (항상 열기 - 디버깅용)
+  // 배포 시 주석 처리하세요
+  mainWindow.webContents.openDevTools();
+
+  // 로딩 에러 시 콘솔에 출력
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('Failed to load:', errorCode, errorDescription);
+  });
+
+  // 크래시 핸들러
+  mainWindow.webContents.on('crashed', () => {
+    console.error('Window crashed!');
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
