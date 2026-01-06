@@ -1,0 +1,52 @@
+const { app, BrowserWindow } = require('electron');
+const path = require('path');
+const isDev = require('electron-is-dev');
+
+let mainWindow;
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    minWidth: 1200,
+    minHeight: 700,
+    icon: path.join(__dirname, 'public/icon.ico'), // 아이콘 경로
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+      enableRemoteModule: true,
+    },
+    autoHideMenuBar: true, // 메뉴바 숨기기
+    backgroundColor: '#0f172a',
+  });
+
+  // 개발 모드에서는 localhost:5173, 프로덕션에서는 빌드된 파일 로드
+  const startUrl = isDev
+    ? 'http://localhost:5173'
+    : `file://${path.join(__dirname, 'dist/index.html')}`;
+
+  mainWindow.loadURL(startUrl);
+
+  // 개발자 도구 (개발 모드에서만)
+  if (isDev) {
+    mainWindow.webContents.openDevTools();
+  }
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+}
+
+app.on('ready', createWindow);
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (mainWindow === null) {
+    createWindow();
+  }
+});

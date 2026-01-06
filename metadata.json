@@ -1,0 +1,7 @@
+{
+  "name": "RiceManager AI - Rice Shop Accounting",
+  "description": "A sophisticated AI-powered accounting and inventory management system for rice wholesalers, featuring Excel-like data grids, automated status tracking, and a built-in AI assistant.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
