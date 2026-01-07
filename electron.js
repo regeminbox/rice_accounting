@@ -25,12 +25,19 @@ function createWindow() {
   // 창을 화면 중앙에 표시
   mainWindow.center();
 
-  // 개발 모드에서는 localhost:5173, 프로덕션에서는 빌드된 파일 로드
-  const startUrl = isDev
-    ? 'http://localhost:5173'
-    : `file://${path.join(__dirname, 'dist/index.html')}`;
+ // 1. 빌드 여부를 더 확실하게 판별 (app.isPackaged 사용)
+const isPackaged = app.isPackaged;
 
-  mainWindow.loadURL(startUrl);
+if (!isPackaged) {
+// 개발 모드: Vite 서버 로드
+mainWindow.loadURL('http://localhost:5173');
+} else {
+// 프로덕션 모드: 빌드된 파일 로드
+// __dirname 기준으로 dist 폴더 위치를 다시 잡아야 할 수도 있습니다.
+// 보통 메인 파일이 루트에 있다면 'dist/index.html'이 맞습니다.
+const indexPath = path.join(__dirname, 'dist/index.html');
+mainWindow.loadFile(indexPath); // loadURL 대신 loadFile 사용 권장
+}
 
   // 로딩 완료 시 창 표시
   mainWindow.webContents.on('did-finish-load', () => {
