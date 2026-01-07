@@ -16,6 +16,7 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false,
       enableRemoteModule: true,
+      webSecurity: false,
     },
     autoHideMenuBar: true, // 메뉴바 숨기기
     backgroundColor: '#0f172a',
@@ -39,8 +40,8 @@ function createWindow() {
   });
 
   // 개발자 도구 (항상 열기 - 디버깅용)
-  // 배포 시 주석 처리하세요
-  mainWindow.webContents.openDevTools();
+  // 배포 시 주석 처리
+  //mainWindow.webContents.openDevTools();
 
   // 로딩 에러 시 콘솔에 출력
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
