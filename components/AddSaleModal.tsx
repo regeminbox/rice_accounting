@@ -233,11 +233,13 @@ const AddSaleModal: React.FC<AddSaleModalProps> = ({ onClose, onAdd }) => {
                 단가 (원) *
               </label>
               <input
-                type="number"
+                type="text"
                 value={unitPrice}
-                onChange={(e) => setUnitPrice(parseInt(e.target.value) || 0)}
-                min="0"
-                step="1000"
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setUnitPrice(parseInt(value) || 0);
+                }}
+                placeholder="54333"
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
               />
             </div>

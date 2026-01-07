@@ -22,6 +22,58 @@ const AIPanel: React.FC<AIPanelProps> = ({ onAutoAdd, todayInsight, onNavigateTo
   const [extractedData, setExtractedData] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 간단한 마크다운 렌더링 함수
+  const renderMarkdown = (text: string) => {
+    return text
+      .split('\n')
+      .map((line, i) => {
+        // 헤딩 (### 제목)
+        if (line.startsWith('### ')) {
+          return <h3 key={i} className="font-bold text-base mt-2 mb-1">{line.slice(4)}</h3>;
+        }
+        if (line.startsWith('## ')) {
+          return <h2 key={i} className="font-bold text-lg mt-3 mb-1">{line.slice(3)}</h2>;
+        }
+        if (line.startsWith('# ')) {
+          return <h1 key={i} className="font-bold text-xl mt-3 mb-2">{line.slice(2)}</h1>;
+        }
+
+        // 리스트 (- 항목)
+        if (line.startsWith('- ')) {
+          return (
+            <div key={i} className="flex gap-2 ml-2">
+              <span>•</span>
+              <span>{line.slice(2)}</span>
+            </div>
+          );
+        }
+
+        // 번호 리스트 (1. 항목)
+        if (/^\d+\.\s/.test(line)) {
+          return <div key={i} className="ml-2">{line}</div>;
+        }
+
+        // 굵게 (**텍스트**)
+        let processedLine = line;
+        const boldMatches = line.match(/\*\*(.+?)\*\*/g);
+        if (boldMatches) {
+          boldMatches.forEach(match => {
+            const text = match.slice(2, -2);
+            processedLine = processedLine.replace(match, `<strong class="font-bold">${text}</strong>`);
+          });
+          return <div key={i} dangerouslySetInnerHTML={{ __html: processedLine }} />;
+        }
+
+        // 빈 줄
+        if (line.trim() === '') {
+          return <div key={i} className="h-2" />;
+        }
+
+        // 일반 텍스트
+        return <div key={i}>{line}</div>;
+      });
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -158,11 +210,11 @@ const AIPanel: React.FC<AIPanelProps> = ({ onAutoAdd, todayInsight, onNavigateTo
           {history.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
-                msg.role === 'user' 
-                  ? 'bg-sky-500 text-white shadow-md shadow-sky-100' 
+                msg.role === 'user'
+                  ? 'bg-sky-500 text-white shadow-md shadow-sky-100'
                   : 'bg-slate-100 text-slate-700'
               }`}>
-                {msg.content}
+                {msg.role === 'user' ? msg.content : renderMarkdown(msg.content)}
               </div>
             </div>
           ))}
