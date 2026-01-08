@@ -5,6 +5,7 @@ import DataTable from './components/DataTable';
 import AIPanel from './components/AIPanel';
 import WelcomeModal from './components/WelcomeModal';
 import AddSaleModal from './components/AddSaleModal';
+import AddMultiItemSaleModal from './components/AddMultiItemSaleModal';
 import EditSaleModal from './components/EditSaleModal';
 import InventoryPage from './components/InventoryPage';
 import CustomersPage from './components/CustomersPage';
@@ -24,6 +25,7 @@ import {
   getWeeklySalesData,
   getRealtimeInsights,
   addSale,
+  addMultiItemSale,
   deleteSale,
   createBackup
 } from './services/database';
@@ -106,11 +108,20 @@ const App: React.FC = () => {
       id: sale.id,
       date: sale.date,
       customerName: sale.customer_name,
-      productName: sale.product_name,
-      quantity: sale.quantity,
-      unitPrice: sale.unit_price,
+      // 다품종 주문인 경우 품목 정보 처리
+      productName: sale.is_multi_item && sale.items
+        ? sale.items.map((item: any) => item.product_name).join(', ')
+        : sale.product_name,
+      quantity: sale.is_multi_item && sale.items
+        ? sale.items.reduce((sum: number, item: any) => sum + item.quantity, 0)
+        : sale.quantity,
+      unitPrice: sale.is_multi_item && sale.items
+        ? Math.round(sale.total_amount / sale.items.reduce((sum: number, item: any) => sum + item.quantity, 0))
+        : sale.unit_price,
       totalAmount: sale.total_amount,
-      status: sale.status as OrderStatus
+      status: sale.status as OrderStatus,
+      isMultiItem: sale.is_multi_item || false,
+      items: sale.items || null
     })));
 
     // Load dashboard stats
@@ -138,8 +149,31 @@ const App: React.FC = () => {
 
   // Keyboard shortcuts removed per user request
 
+  // 다품종 주문 추가
+  const handleMultiItemAdd = async (sale: any) => {
+    try {
+      const result = await addMultiItemSale(sale) as any;
+
+      if (result.warning) {
+        alert(result.warning);
+      } else {
+        alert('판매 기록이 추가되었습니다!');
+      }
+
+      await loadData();
+    } catch (error: any) {
+      alert(`추가 실패: ${error.message}`);
+      console.error('추가 에러:', error);
+    }
+  };
+
   const handleAutoAdd = async (extracted: any) => {
     try {
+      // 다품종 주문인 경우
+      if (extracted.items && Array.isArray(extracted.items)) {
+        return handleMultiItemAdd(extracted);
+      }
+
       // AddSaleModal에서는 customer_name, product_name으로 전달되고
       // AI에서는 customerName, productName으로 전달될 수 있으므로 둘 다 지원
       const customerName = extracted.customer_name || extracted.customerName;
@@ -178,17 +212,28 @@ const App: React.FC = () => {
     }
   };
 
-  const handleEditSale = (sale: SaleRecord) => {
-    // SaleRecord를 database sale format으로 변환
-    setEditingSale({
-      id: sale.id,
-      customer_name: sale.customerName,
-      product_name: sale.productName,
-      quantity: sale.quantity,
-      unit_price: sale.unitPrice,
-      status: sale.status,
-      notes: ''
-    });
+  const handleEditSale = async (sale: SaleRecord) => {
+    // 원본 데이터베이스에서 판매 정보 가져오기 (다품종 정보 포함)
+    const allSales = await getAllSales() as any[];
+    const originalSale = allSales.find((s: any) => s.id === sale.id);
+
+    if (originalSale) {
+      setEditingSale(originalSale);
+    } else {
+      // fallback: SaleRecord를 database sale format으로 변환
+      setEditingSale({
+        id: sale.id,
+        customer_name: sale.customerName,
+        product_name: sale.productName,
+        quantity: sale.quantity,
+        unit_price: sale.unitPrice,
+        status: sale.status,
+        date: sale.date,
+        notes: '',
+        is_multi_item: (sale as any).isMultiItem || false,
+        items: (sale as any).items || null
+      });
+    }
   };
 
   const handleDeleteSale = async (sale: SaleRecord) => {
@@ -305,9 +350,9 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Add Sale Modal */}
+      {/* Add Sale Modal - 다품종 주문 */}
       {showAddSaleModal && (
-        <AddSaleModal
+        <AddMultiItemSaleModal
           onClose={() => setShowAddSaleModal(false)}
           onAdd={handleAutoAdd}
         />

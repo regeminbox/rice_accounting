@@ -106,9 +106,6 @@ const DataTable: React.FC<DataTableProps> = ({ data, onRowClick, onAddClick, onI
             <tr className="bg-slate-50/50">
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">일자</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">거래처</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">품종/제품</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">수량</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">단가</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">합계 금액</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">상태</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">액션</th>
@@ -123,13 +120,22 @@ const DataTable: React.FC<DataTableProps> = ({ data, onRowClick, onAddClick, onI
                 }`}
               >
                 <td className="px-6 py-4 text-sm text-slate-500 font-medium">{row.date}</td>
-                <td className="px-6 py-4 text-sm font-bold text-slate-800">{row.customerName}</td>
-                <td className="px-6 py-4 text-sm text-slate-600">
-                  <span className="px-2 py-0.5 bg-sky-50 text-sky-700 rounded-md text-[11px] font-bold mr-2">쌀</span>
-                  {row.productName}
+                <td className="px-6 py-4">
+                  <div className="text-sm font-bold text-slate-800">{row.customerName}</div>
+                  {(row as any).isMultiItem && (row as any).items ? (
+                    <div className="mt-1 text-xs text-slate-500">
+                      {(row as any).items.map((item: any, idx: number) => (
+                        <div key={idx}>
+                          {item.product_name} {item.quantity}개 × {item.unit_price.toLocaleString()}원
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-xs text-slate-500">
+                      {row.productName} {row.quantity}개
+                    </div>
+                  )}
                 </td>
-                <td className="px-6 py-4 text-sm text-slate-600 font-mono">{row.quantity}포</td>
-                <td className="px-6 py-4 text-sm text-slate-400 font-mono">{row.unitPrice.toLocaleString()}원</td>
                 <td className="px-6 py-4 text-sm font-bold text-slate-800 font-mono">
                   {row.totalAmount.toLocaleString()}원
                 </td>

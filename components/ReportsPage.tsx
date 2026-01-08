@@ -12,6 +12,7 @@ const ReportsPage: React.FC = () => {
   const [aiInsights, setAIInsights] = useState<string>('');
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState<'1month' | '1year' | 'all'>('all');
 
   useEffect(() => {
     loadData();
@@ -29,17 +30,39 @@ const ReportsPage: React.FC = () => {
     setIsLoading(false);
   };
 
+  const filterSalesByPeriod = (salesData: any[]) => {
+    if (selectedPeriod === 'all') return salesData;
+
+    const now = new Date();
+    const cutoffDate = new Date();
+
+    if (selectedPeriod === '1month') {
+      cutoffDate.setMonth(now.getMonth() - 1);
+    } else if (selectedPeriod === '1year') {
+      cutoffDate.setFullYear(now.getFullYear() - 1);
+    }
+
+    return salesData.filter(sale => {
+      if (!sale.date) return true;
+      const saleDate = new Date(sale.date);
+      return saleDate >= cutoffDate;
+    });
+  };
+
   const handleGenerateAIInsights = async () => {
     setIsLoadingAI(true);
-    const recentSales = sales.slice(0, 10);
+    const filteredSales = filterSalesByPeriod(sales);
+    const recentSales = filteredSales.slice(0, 10);
     const insights = await getAIInsights(products, recentSales);
     setAIInsights(insights);
     setIsLoadingAI(false);
   };
 
   // 품종별 판매량 집계
+  const filteredSales = filterSalesByPeriod(sales);
+
   const productSalesData = products.map(product => {
-    const productSales = sales.filter(s => s.product_id === product.id);
+    const productSales = filteredSales.filter(s => s.product_id === product.id);
     const totalQuantity = productSales.reduce((sum, s) => sum + s.quantity, 0);
     const totalRevenue = productSales.reduce((sum, s) => sum + s.total_amount, 0);
 
@@ -55,7 +78,7 @@ const ReportsPage: React.FC = () => {
   const monthlySalesData = (() => {
     const monthlyMap: { [key: string]: number } = {};
 
-    sales.forEach(sale => {
+    filteredSales.forEach(sale => {
       const month = sale.date.substring(0, 7); // yyyy-MM
       monthlyMap[month] = (monthlyMap[month] || 0) + sale.total_amount;
     });
@@ -71,9 +94,9 @@ const ReportsPage: React.FC = () => {
 
   // 결제 상태별 통계
   const paymentStatusData = [
-    { name: '결제완료', value: sales.filter(s => s.status === '결제완료').length, color: '#10b981' },
-    { name: '미결제', value: sales.filter(s => s.status === '미결제').length, color: '#f43f5e' },
-    { name: '배송중', value: sales.filter(s => s.status === '배송중').length, color: '#f59e0b' }
+    { name: '결제완료', value: filteredSales.filter(s => s.status === '결제완료').length, color: '#10b981' },
+    { name: '미결제', value: filteredSales.filter(s => s.status === '미결제').length, color: '#f43f5e' },
+    { name: '배송중', value: filteredSales.filter(s => s.status === '배송중').length, color: '#f59e0b' }
   ].filter(item => item.value > 0);
 
   if (isLoading) {
@@ -101,6 +124,48 @@ const ReportsPage: React.FC = () => {
         >
           {ICONS.AI} {isLoadingAI ? 'AI 분석 중...' : 'AI 인사이트 생성'}
         </button>
+      </div>
+
+      {/* Period Filter */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-bold text-slate-700 mb-1">분석 기간 선택</h4>
+            <p className="text-xs text-slate-500">조회 기간을 선택하여 보고서를 확인하세요</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSelectedPeriod('1month')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                selectedPeriod === '1month'
+                  ? 'bg-indigo-500 text-white shadow-md'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              1개월
+            </button>
+            <button
+              onClick={() => setSelectedPeriod('1year')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                selectedPeriod === '1year'
+                  ? 'bg-indigo-500 text-white shadow-md'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              1년
+            </button>
+            <button
+              onClick={() => setSelectedPeriod('all')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                selectedPeriod === 'all'
+                  ? 'bg-indigo-500 text-white shadow-md'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              전체
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* AI Insights Card */}
@@ -263,31 +328,36 @@ const ReportsPage: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-2xl p-6">
           <div className="text-xs font-bold text-sky-600 uppercase tracking-wider mb-2">
-            총 판매 건수
+            {selectedPeriod === 'all' ? '총 판매 건수' : '기간 판매 건수'}
           </div>
-          <div className="text-3xl font-black text-sky-700">{sales.length}건</div>
+          <div className="text-3xl font-black text-sky-700">{filteredSales.length}건</div>
         </div>
         <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-6">
           <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-2">
-            총 매출액
+            {selectedPeriod === 'all' ? '총 매출액' : '기간 매출액'}
           </div>
           <div className="text-2xl font-black text-emerald-700">
-            {sales.reduce((sum, s) => sum + s.total_amount, 0).toLocaleString()}원
+            {filteredSales.reduce((sum, s) => sum + s.total_amount, 0).toLocaleString()}원
           </div>
         </div>
         <div className="bg-gradient-to-br from-rose-50 to-rose-100 rounded-2xl p-6">
           <div className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-2">
-            총 미수금
+            {selectedPeriod === 'all' ? '총 미수금' : '기간 미수금'}
           </div>
           <div className="text-2xl font-black text-rose-700">
-            {sales.filter(s => s.status === '미결제').reduce((sum, s) => sum + s.total_amount, 0).toLocaleString()}원
+            {filteredSales.filter(s => s.status === '미결제').reduce((sum, s) => sum + s.total_amount, 0).toLocaleString()}원
           </div>
         </div>
         <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-2xl p-6">
           <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">
-            거래처 수
+            {selectedPeriod === 'all' ? '총 거래처' : '기간 거래처'}
           </div>
-          <div className="text-3xl font-black text-indigo-700">{customers.length}개</div>
+          <div className="text-3xl font-black text-indigo-700">
+            {selectedPeriod === 'all'
+              ? customers.length
+              : [...new Set(filteredSales.map(s => s.customer_id))].length
+            }개
+          </div>
         </div>
       </div>
     </div>

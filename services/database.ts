@@ -338,6 +338,112 @@ export const getAllSales = async () => {
   });
 };
 
+// 다품종 주문 지원 (신규)
+export const addMultiItemSale = async (sale: {
+  customer_name: string;
+  items: Array<{ product_name: string; quantity: number; unit_price: number }>;
+  status: string;
+  notes?: string;
+  date?: string; // 날짜 지정 가능
+}) => {
+  const database = await initDatabase();
+
+  // 거래처 확인/생성
+  const customer = await getOrCreateCustomer(sale.customer_name) as any;
+
+  // 각 품종별로 재고 확인 및 품종 생성
+  const processedItems = [];
+  let totalAmount = 0;
+
+  for (const item of sale.items) {
+    // 기존 품종 확인
+    let existingProduct = await getProductByName(item.product_name) as any;
+
+    // 품종 확인/생성
+    const product = await getOrCreateProduct(item.product_name, item.unit_price) as any;
+
+    // 새로 생성된 품종인 경우 초기 재고 설정
+    const isNewProduct = !existingProduct;
+    if (isNewProduct) {
+      await updateProduct(product.id, { stock: item.quantity + 50 });
+      existingProduct = await getProductByName(item.product_name) as any;
+    }
+
+    // 재고 확인
+    const currentProduct = existingProduct || product;
+    if (currentProduct.stock < item.quantity) {
+      throw new Error(`${item.product_name} 재고 부족! 현재 ${currentProduct.stock}포만 남았습니다.`);
+    }
+
+    processedItems.push({
+      product_id: product.id,
+      product_name: product.name,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      subtotal: item.quantity * item.unit_price
+    });
+
+    totalAmount += item.quantity * item.unit_price;
+  }
+
+  const newSale = {
+    id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    date: sale.date || format(new Date(), 'yyyy-MM-dd'),
+    customer_id: customer.id,
+    customer_name: customer.name,
+    items: processedItems, // 다품종 항목
+    total_amount: totalAmount,
+    status: sale.status,
+    notes: sale.notes || null,
+    is_multi_item: true, // 다품종 주문 표시
+    created_at: new Date().toISOString()
+  };
+
+  return new Promise(async (resolve, reject) => {
+    try {
+      // 판매 기록 추가
+      const transaction = database.transaction(['sales'], 'readwrite');
+      const store = transaction.objectStore('sales');
+      const addRequest = store.add(newSale);
+
+      await new Promise((res, rej) => {
+        addRequest.onsuccess = () => res(addRequest.result);
+        addRequest.onerror = () => rej(addRequest.error);
+      });
+
+      // 각 품종별 재고 차감
+      const warnings = [];
+      for (const item of processedItems) {
+        await updateProductStock(item.product_id, -item.quantity);
+
+        // 안전재고 확인
+        const updatedProduct = await getProductByName(item.product_name) as any;
+        if (updatedProduct && updatedProduct.stock <= updatedProduct.safety_stock) {
+          warnings.push(`⚠️ ${item.product_name} 재고가 안전재고(${updatedProduct.safety_stock}포) 이하입니다! (현재: ${updatedProduct.stock}포)`);
+        }
+      }
+
+      // 미결제인 경우 미수금 업데이트
+      if (sale.status === '미결제') {
+        await updateCustomer(customer.id, { balance: customer.balance + totalAmount });
+      }
+
+      if (warnings.length > 0) {
+        resolve({
+          success: true,
+          id: newSale.id,
+          warning: warnings.join('\n')
+        });
+      } else {
+        resolve({ success: true, id: newSale.id });
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+// 단일 품종 주문 (기존 호환성 유지)
 export const addSale = async (sale: {
   customer_name: string;
   product_name: string;
@@ -345,6 +451,7 @@ export const addSale = async (sale: {
   unit_price: number;
   status: string;
   notes?: string;
+  date?: string; // 날짜 지정 가능
 }) => {
   const database = await initDatabase();
 
@@ -373,7 +480,7 @@ export const addSale = async (sale: {
 
   const newSale = {
     id: `sale_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    date: format(new Date(), 'yyyy-MM-dd'),
+    date: sale.date || format(new Date(), 'yyyy-MM-dd'), // 날짜 지정 가능
     customer_id: customer.id,
     customer_name: customer.name,
     product_id: product.id,
@@ -383,6 +490,7 @@ export const addSale = async (sale: {
     total_amount: sale.quantity * sale.unit_price,
     status: sale.status,
     notes: sale.notes || null,
+    is_multi_item: false, // 단일 품종
     created_at: new Date().toISOString()
   };
 
@@ -430,6 +538,9 @@ export const updateSale = async (saleId: string, updates: {
   unit_price?: number;
   status?: string;
   notes?: string;
+  date?: string;
+  items?: Array<{ product_name: string; quantity: number; unit_price: number; unit?: string }>;
+  is_multi_item?: boolean;
 }) => {
   const database = await initDatabase();
 
@@ -447,79 +558,158 @@ export const updateSale = async (saleId: string, updates: {
       throw new Error('Sale not found');
     }
 
-    // 변경 사항 확인
-    const customerChanged = updates.customer_name !== undefined && updates.customer_name !== oldSale.customer_name;
-    const productChanged = updates.product_name !== undefined && updates.product_name !== oldSale.product_name;
-    const quantityChanged = updates.quantity !== undefined && updates.quantity !== oldSale.quantity;
-    const statusChanged = updates.status !== undefined && updates.status !== oldSale.status;
-    const priceChanged = updates.unit_price !== undefined && updates.unit_price !== oldSale.unit_price;
+    // 다품종 수정인 경우
+    if (updates.items && updates.items.length > 0) {
+      // 기존 재고 복원
+      if (oldSale.is_multi_item && oldSale.items) {
+        for (const item of oldSale.items) {
+          const product = await getProductByName(item.product_name) as any;
+          if (product) {
+            await updateProductStock(product.id, item.quantity);
+          }
+        }
+      } else {
+        await updateProductStock(oldSale.product_id, oldSale.quantity);
+      }
 
-    // 거래처가 변경된 경우
-    let newCustomer = null;
-    if (customerChanged) {
-      newCustomer = await getOrCreateCustomer(updates.customer_name!) as any;
-    }
+      // 새 품종들 처리 및 재고 차감
+      const processedItems = [];
+      for (const item of updates.items) {
+        const product = await getOrCreateProduct(item.product_name, item.unit_price) as any;
+        await updateProductStock(product.id, -item.quantity);
+        processedItems.push({
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          unit: item.unit || '포'
+        });
+      }
 
-    // 품종이 변경된 경우
-    let newProduct = null;
-    if (productChanged) {
-      newProduct = await getOrCreateProduct(updates.product_name!, updates.unit_price || oldSale.unit_price) as any;
-    }
+      // 거래처 처리
+      const customer = updates.customer_name
+        ? await getOrCreateCustomer(updates.customer_name) as any
+        : await new Promise<any>(async (resolve) => {
+            const customers = await getAllCustomers() as any[];
+            resolve(customers.find((c: any) => c.id === oldSale.customer_id));
+          });
 
-    // 기존 재고 복원 (품종 변경 또는 수량 변경 시)
-    if (productChanged) {
-      await updateProductStock(oldSale.product_id, oldSale.quantity);
-    } else if (quantityChanged) {
-      const diff = oldSale.quantity - updates.quantity!;
-      await updateProductStock(oldSale.product_id, diff);
-    }
+      // 총액 계산
+      const newTotal = processedItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
 
-    // 새 품종에 재고 차감 (품종 변경 시)
-    if (productChanged && newProduct) {
-      await updateProductStock(newProduct.id, -(updates.quantity || oldSale.quantity));
-    }
-
-    // 미수금 조정
-    if (customerChanged || statusChanged || priceChanged || quantityChanged) {
-      const oldCustomerId = oldSale.customer_id;
-      const newCustomerId = newCustomer ? newCustomer.id : oldCustomerId;
-      const newStatus = updates.status || oldSale.status;
-      const newTotal = (updates.quantity || oldSale.quantity) * (updates.unit_price || oldSale.unit_price);
-
-      // 기존 미수금 차감 (기존 상태가 미결제였던 경우)
+      // 미수금 조정
       if (oldSale.status === '미결제') {
-        const customers = await getAllCustomers() as any[];
-        const oldCustomer = customers.find((c: any) => c.id === oldCustomerId);
+        const oldCustomer = await new Promise<any>(async (resolve) => {
+          const customers = await getAllCustomers() as any[];
+          resolve(customers.find((c: any) => c.id === oldSale.customer_id));
+        });
         if (oldCustomer) {
           await updateCustomer(oldCustomer.id, { balance: oldCustomer.balance - oldSale.total_amount });
         }
       }
 
-      // 새 미수금 추가 (새 상태가 미결제인 경우)
-      if (newStatus === '미결제') {
-        const customers = await getAllCustomers() as any[];
-        const targetCustomer = customers.find((c: any) => c.id === newCustomerId);
-        if (targetCustomer) {
-          await updateCustomer(targetCustomer.id, { balance: targetCustomer.balance + newTotal });
+      if (updates.status === '미결제' || (!updates.status && oldSale.status === '미결제')) {
+        if (customer) {
+          await updateCustomer(customer.id, { balance: customer.balance + newTotal });
         }
       }
-    }
 
-    // 판매 기록 업데이트
-    if (customerChanged && newCustomer) {
-      oldSale.customer_id = newCustomer.id;
-      oldSale.customer_name = newCustomer.name;
-    }
-    if (productChanged && newProduct) {
-      oldSale.product_id = newProduct.id;
-      oldSale.product_name = newProduct.name;
-    }
-    if (updates.quantity !== undefined) oldSale.quantity = updates.quantity;
-    if (updates.unit_price !== undefined) oldSale.unit_price = updates.unit_price;
-    if (updates.status !== undefined) oldSale.status = updates.status;
-    if (updates.notes !== undefined) oldSale.notes = updates.notes;
+      // 판매 기록 업데이트
+      oldSale.customer_id = customer.id;
+      oldSale.customer_name = customer.name;
+      oldSale.items = processedItems;
+      oldSale.is_multi_item = true;
+      oldSale.total_amount = newTotal;
+      oldSale.status = updates.status || oldSale.status;
+      oldSale.notes = updates.notes !== undefined ? updates.notes : oldSale.notes;
+      oldSale.date = updates.date || oldSale.date;
 
-    oldSale.total_amount = oldSale.quantity * oldSale.unit_price;
+      // 단일 품목 필드는 undefined로 설정
+      oldSale.product_id = undefined;
+      oldSale.product_name = undefined;
+      oldSale.quantity = undefined;
+      oldSale.unit_price = undefined;
+
+    } else {
+      // 단일 품목 수정 (기존 로직 유지)
+      const customerChanged = updates.customer_name !== undefined && updates.customer_name !== oldSale.customer_name;
+      const productChanged = updates.product_name !== undefined && updates.product_name !== oldSale.product_name;
+      const quantityChanged = updates.quantity !== undefined && updates.quantity !== oldSale.quantity;
+      const statusChanged = updates.status !== undefined && updates.status !== oldSale.status;
+      const priceChanged = updates.unit_price !== undefined && updates.unit_price !== oldSale.unit_price;
+
+      let newCustomer = null;
+      if (customerChanged) {
+        newCustomer = await getOrCreateCustomer(updates.customer_name!) as any;
+      }
+
+      let newProduct = null;
+      if (productChanged) {
+        newProduct = await getOrCreateProduct(updates.product_name!, updates.unit_price || oldSale.unit_price) as any;
+      }
+
+      // 기존 재고 복원
+      if (oldSale.is_multi_item && oldSale.items) {
+        for (const item of oldSale.items) {
+          const product = await getProductByName(item.product_name) as any;
+          if (product) {
+            await updateProductStock(product.id, item.quantity);
+          }
+        }
+      } else if (productChanged) {
+        await updateProductStock(oldSale.product_id, oldSale.quantity);
+      } else if (quantityChanged) {
+        const diff = oldSale.quantity - updates.quantity!;
+        await updateProductStock(oldSale.product_id, diff);
+      }
+
+      // 새 품종에 재고 차감
+      if (productChanged && newProduct) {
+        await updateProductStock(newProduct.id, -(updates.quantity || oldSale.quantity));
+      }
+
+      // 미수금 조정
+      if (customerChanged || statusChanged || priceChanged || quantityChanged) {
+        const oldCustomerId = oldSale.customer_id;
+        const newCustomerId = newCustomer ? newCustomer.id : oldCustomerId;
+        const newStatus = updates.status || oldSale.status;
+        const newTotal = (updates.quantity || oldSale.quantity) * (updates.unit_price || oldSale.unit_price);
+
+        if (oldSale.status === '미결제') {
+          const customers = await getAllCustomers() as any[];
+          const oldCustomer = customers.find((c: any) => c.id === oldCustomerId);
+          if (oldCustomer) {
+            await updateCustomer(oldCustomer.id, { balance: oldCustomer.balance - oldSale.total_amount });
+          }
+        }
+
+        if (newStatus === '미결제') {
+          const customers = await getAllCustomers() as any[];
+          const targetCustomer = customers.find((c: any) => c.id === newCustomerId);
+          if (targetCustomer) {
+            await updateCustomer(targetCustomer.id, { balance: targetCustomer.balance + newTotal });
+          }
+        }
+      }
+
+      // 판매 기록 업데이트
+      if (customerChanged && newCustomer) {
+        oldSale.customer_id = newCustomer.id;
+        oldSale.customer_name = newCustomer.name;
+      }
+      if (productChanged && newProduct) {
+        oldSale.product_id = newProduct.id;
+        oldSale.product_name = newProduct.name;
+      }
+      if (updates.quantity !== undefined) oldSale.quantity = updates.quantity;
+      if (updates.unit_price !== undefined) oldSale.unit_price = updates.unit_price;
+      if (updates.status !== undefined) oldSale.status = updates.status;
+      if (updates.notes !== undefined) oldSale.notes = updates.notes;
+      if (updates.date !== undefined) oldSale.date = updates.date;
+
+      oldSale.total_amount = oldSale.quantity * oldSale.unit_price;
+      oldSale.is_multi_item = false;
+      oldSale.items = undefined;
+    }
 
     // 업데이트 저장
     return new Promise((resolve, reject) => {

@@ -1,33 +1,27 @@
 
 import React, { useState, useEffect } from 'react';
-import { getAllProducts, getAllCustomers, updateSale } from '../services/database';
+import { getAllProducts, getAllCustomers } from '../services/database';
 import { ICONS } from '../constants';
 
-interface EditSaleModalProps {
-  sale: any;
+interface AddMultiItemSaleModalProps {
   onClose: () => void;
-  onUpdate: () => void;
+  onAdd: (sale: {
+    customer_name: string;
+    items: Array<{ product_name: string; quantity: number; unit_price: number }>;
+    status: string;
+    notes?: string;
+    date?: string;
+  }) => void;
 }
 
-const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }) => {
-  const [customerName, setCustomerName] = useState(sale.customer_name);
-  const [date, setDate] = useState(sale.date || new Date().toISOString().split('T')[0]);
-  const [isMultiItem, setIsMultiItem] = useState(sale.is_multi_item || false);
-
-  // 다품종 모드
-  const [items, setItems] = useState<Array<{ product_name: string; quantity: number; unit_price: number; unit: string }>>(
-    sale.is_multi_item && sale.items
-      ? sale.items.map((item: any) => ({
-          product_name: item.product_name,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          unit: item.unit || '포'
-        }))
-      : [{ product_name: sale.product_name || '', quantity: sale.quantity || 1, unit_price: sale.unit_price || 45000, unit: '포' }]
-  );
-
-  const [status, setStatus] = useState(sale.status);
-  const [notes, setNotes] = useState(sale.notes || '');
+const AddMultiItemSaleModal: React.FC<AddMultiItemSaleModalProps> = ({ onClose, onAdd }) => {
+  const [customerName, setCustomerName] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]); // 오늘 날짜
+  const [items, setItems] = useState<Array<{ product_name: string; quantity: number; unit_price: number; unit: string }>>([
+    { product_name: '', quantity: 1, unit_price: 45000, unit: '포' }
+  ]);
+  const [status, setStatus] = useState('미결제');
+  const [notes, setNotes] = useState('');
 
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -44,15 +38,11 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
 
   const addItem = () => {
     setItems([...items, { product_name: '', quantity: 1, unit_price: 45000, unit: '포' }]);
-    setIsMultiItem(true);
   };
 
   const removeItem = (index: number) => {
     if (items.length > 1) {
       setItems(items.filter((_, i) => i !== index));
-      if (items.length === 2) {
-        setIsMultiItem(false);
-      }
     }
   };
 
@@ -61,6 +51,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
 
     if (field === 'product_name') {
       newItems[index][field] = value;
+      // 품종 선택 시 자동으로 단가 입력
       const product = products.find(p => p.name === value);
       if (product) {
         newItems[index].unit_price = product.unit_price;
@@ -81,7 +72,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
     return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!customerName.trim()) {
@@ -101,51 +92,28 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
       }
     }
 
-    try {
-      // 다품종이거나 품목이 여러 개인 경우
-      if (isMultiItem || items.length > 1) {
-        // 다품종 수정을 위해 updateSale에 items 전달
-        await updateSale(sale.id, {
-          customer_name: customerName,
-          items: items,
-          is_multi_item: true,
-          status,
-          notes: notes.trim() || undefined,
-          date
-        });
-      } else {
-        // 단일 품목인 경우 기존 방식 유지
-        await updateSale(sale.id, {
-          customer_name: customerName,
-          product_name: items[0].product_name,
-          quantity: items[0].quantity,
-          unit_price: items[0].unit_price,
-          status,
-          notes: notes.trim() || undefined,
-          date
-        });
-      }
+    onAdd({
+      customer_name: customerName,
+      items: items,
+      status,
+      notes: notes.trim() || undefined,
+      date
+    });
 
-      alert('판매 기록이 수정되었습니다.');
-      await onUpdate();
-      onClose();
-    } catch (error: any) {
-      alert(`수정 실패: ${error.message}`);
-      console.error('수정 에러:', error);
-    }
+    onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden border border-slate-200 flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-6 text-white shrink-0">
+        <div className="bg-gradient-to-br from-sky-500 to-indigo-600 p-6 text-white shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center border border-white/10">
-                {ICONS.Edit}
+                {ICONS.Plus}
               </div>
-              <h2 className="text-xl font-bold">판매 기록 수정</h2>
+              <h2 className="text-xl font-bold">판매 기록 추가 (다품종)</h2>
             </div>
             <button
               onClick={onClose}
@@ -170,7 +138,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
                 onChange={(e) => setCustomerName(e.target.value)}
                 list="customer-list"
                 placeholder="거래처명 입력 또는 선택"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
               />
               <datalist id="customer-list">
                 {customers.map((c) => (
@@ -188,7 +156,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
               />
             </div>
           </div>
@@ -202,7 +170,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
               <button
                 type="button"
                 onClick={addItem}
-                className="px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 transition-all flex items-center gap-1"
+                className="px-3 py-1.5 bg-sky-500 text-white rounded-lg text-xs font-bold hover:bg-sky-600 transition-all flex items-center gap-1"
               >
                 {ICONS.Plus} 품목 추가
               </button>
@@ -224,7 +192,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
                           onChange={(e) => updateItem(index, 'product_name', e.target.value)}
                           list={`product-list-${index}`}
                           placeholder="품종명"
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
                         />
                         <datalist id={`product-list-${index}`}>
                           {products.map((p) => (
@@ -244,7 +212,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
                             value={item.quantity}
                             onChange={(e) => updateItem(index, 'quantity', e.target.value)}
                             min="1"
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
                           />
                         </div>
                         <div>
@@ -254,7 +222,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
                           <select
                             value={item.unit}
                             onChange={(e) => updateItem(index, 'unit', e.target.value)}
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
                           >
                             <option value="포">포</option>
                             <option value="알">알</option>
@@ -277,24 +245,17 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
                           value={item.unit_price}
                           onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
                           placeholder="54333"
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
                         />
-                      </div>
-
-                      {/* 소계 */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase">
-                          소계
-                        </label>
-                        <div className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 flex items-center">
-                          {(item.quantity * item.unit_price).toLocaleString()}원
-                        </div>
                       </div>
                     </div>
 
-                    {/* 삭제 버튼 */}
-                    {items.length > 1 && (
-                      <div className="pt-5">
+                    {/* 소계 및 삭제 버튼 */}
+                    <div className="flex flex-col items-end gap-2 pt-5">
+                      <span className="text-sm font-bold text-slate-700">
+                        {(item.quantity * item.unit_price).toLocaleString()}원
+                      </span>
+                      {items.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeItem(index)}
@@ -302,8 +263,8 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
                         >
                           ✕
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -323,7 +284,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
                   onClick={() => setStatus(s)}
                   className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${
                     status === s
-                      ? 'bg-amber-500 text-white shadow-md shadow-amber-100'
+                      ? 'bg-sky-500 text-white shadow-md shadow-sky-100'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -343,18 +304,18 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               placeholder="추가 메모사항 (선택)"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all resize-none"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all resize-none"
             />
           </div>
 
           {/* 총액 표시 */}
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 border-2 border-amber-200">
+          <div className="bg-gradient-to-br from-sky-50 to-indigo-50 rounded-2xl p-5 border-2 border-sky-200">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">총 판매 금액</span>
+                <span className="text-xs font-bold text-sky-600 uppercase tracking-wider">총 판매 금액</span>
                 <div className="text-sm text-slate-600 mt-1">품목 {items.length}개</div>
               </div>
-              <span className="text-3xl font-black text-amber-600">
+              <span className="text-3xl font-black text-sky-600">
                 {getTotalAmount().toLocaleString()}원
               </span>
             </div>
@@ -374,9 +335,9 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
             <button
               type="submit"
               onClick={handleSubmit}
-              className="flex-1 py-3 px-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl font-bold shadow-lg shadow-amber-100 hover:shadow-xl transition-all"
+              className="flex-1 py-3 px-4 bg-gradient-to-r from-sky-500 to-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-sky-100 hover:shadow-xl transition-all"
             >
-              수정하기
+              추가하기
             </button>
           </div>
         </div>
@@ -385,4 +346,4 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
   );
 };
 
-export default EditSaleModal;
+export default AddMultiItemSaleModal;
