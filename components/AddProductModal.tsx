@@ -11,6 +11,7 @@ interface AddProductModalProps {
     unit_price: number;
     cost_price: number;
     safety_stock: number;
+    unit?: string;
   }) => void;
 }
 
@@ -21,6 +22,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onAdd }) => 
   const [unitPrice, setUnitPrice] = useState(45000);
   const [costPrice, setCostPrice] = useState(39000);
   const [safetyStock, setSafetyStock] = useState(10);
+  const [unit, setUnit] = useState('포');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +43,8 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onAdd }) => 
       stock,
       unit_price: unitPrice,
       cost_price: costPrice,
-      safety_stock: safetyStock
+      safety_stock: safetyStock,
+      unit
     });
 
     onClose();
@@ -104,10 +107,30 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onAdd }) => 
               </select>
             </div>
 
+            {/* 단위 */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
+                단위 *
+              </label>
+              <select
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              >
+                <option value="포">포</option>
+                <option value="봉">봉</option>
+                <option value="판">판</option>
+                <option value="개">개</option>
+                <option value="알">알</option>
+                <option value="kg">kg</option>
+                <option value="박스">박스</option>
+              </select>
+            </div>
+
             {/* 재고 */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
-                재고 (포) *
+                재고 ({unit}) *
               </label>
               <input
                 type="number"
@@ -121,7 +144,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onAdd }) => 
             {/* 안전재고 */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
-                안전재고 (포) *
+                안전재고 ({unit}) *
               </label>
               <input
                 type="number"

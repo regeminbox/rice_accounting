@@ -45,12 +45,12 @@ export const initDatabase = (): Promise<IDBDatabase> => {
 
         // 초기 데이터 추가 (onupgradeneeded 트랜잭션 내에서)
         const products = [
-          { id: `prod_${Date.now()}_1`, name: '고시히카리', category: '백미', stock: 50, unit_price: 52000, cost_price: 45000, safety_stock: 10 },
-          { id: `prod_${Date.now()}_2`, name: '추청(아끼바레)', category: '백미', stock: 80, unit_price: 48000, cost_price: 42000, safety_stock: 15 },
-          { id: `prod_${Date.now()}_3`, name: '삼광쌀', category: '백미', stock: 100, unit_price: 45000, cost_price: 39000, safety_stock: 20 },
-          { id: `prod_${Date.now()}_4`, name: '오대쌀', category: '백미', stock: 60, unit_price: 44000, cost_price: 38000, safety_stock: 15 },
-          { id: `prod_${Date.now()}_5`, name: '안남미', category: '백미', stock: 40, unit_price: 40000, cost_price: 35000, safety_stock: 10 },
-          { id: `prod_${Date.now()}_6`, name: '현미', category: '현미', stock: 30, unit_price: 48000, cost_price: 42000, safety_stock: 10 },
+          { id: `prod_${Date.now()}_1`, name: '고시히카리', category: '백미', stock: 50, unit_price: 52000, cost_price: 45000, safety_stock: 10, unit: '포' },
+          { id: `prod_${Date.now()}_2`, name: '추청(아끼바레)', category: '백미', stock: 80, unit_price: 48000, cost_price: 42000, safety_stock: 15, unit: '포' },
+          { id: `prod_${Date.now()}_3`, name: '삼광쌀', category: '백미', stock: 100, unit_price: 45000, cost_price: 39000, safety_stock: 20, unit: '포' },
+          { id: `prod_${Date.now()}_4`, name: '오대쌀', category: '백미', stock: 60, unit_price: 44000, cost_price: 38000, safety_stock: 15, unit: '포' },
+          { id: `prod_${Date.now()}_5`, name: '안남미', category: '백미', stock: 40, unit_price: 40000, cost_price: 35000, safety_stock: 10, unit: '포' },
+          { id: `prod_${Date.now()}_6`, name: '현미', category: '현미', stock: 30, unit_price: 48000, cost_price: 42000, safety_stock: 10, unit: '포' },
         ];
 
         products.forEach(product => productStore.add(product));
@@ -209,11 +209,13 @@ export const addProduct = async (product: {
   unit_price: number;
   cost_price: number;
   safety_stock: number;
+  unit?: string;
 }) => {
   const database = await initDatabase();
 
   const newProduct = {
     id: `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    unit: '포', // 기본값
     ...product
   };
 
@@ -286,6 +288,7 @@ export const updateProduct = async (productId: string, updates: {
   unit_price?: number;
   cost_price?: number;
   safety_stock?: number;
+  unit?: string;
 }) => {
   const database = await initDatabase();
   return new Promise((resolve, reject) => {

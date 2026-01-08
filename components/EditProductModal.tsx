@@ -16,6 +16,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
   const [unitPrice, setUnitPrice] = useState(product.unit_price);
   const [costPrice, setCostPrice] = useState(product.cost_price);
   const [safetyStock, setSafetyStock] = useState(product.safety_stock);
+  const [unit, setUnit] = useState(product.unit || '포');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +38,8 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
         stock,
         unit_price: unitPrice,
         cost_price: costPrice,
-        safety_stock: safetyStock
+        safety_stock: safetyStock,
+        unit
       });
 
       alert('품종 정보가 수정되었습니다.');
@@ -106,10 +108,30 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
               </select>
             </div>
 
+            {/* 단위 */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
+                단위 *
+              </label>
+              <select
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              >
+                <option value="포">포</option>
+                <option value="봉">봉</option>
+                <option value="판">판</option>
+                <option value="개">개</option>
+                <option value="알">알</option>
+                <option value="kg">kg</option>
+                <option value="박스">박스</option>
+              </select>
+            </div>
+
             {/* 재고 */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
-                재고 (포) *
+                재고 ({unit}) *
               </label>
               <input
                 type="number"
@@ -123,7 +145,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
             {/* 안전재고 */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wider">
-                안전재고 (포) *
+                안전재고 ({unit}) *
               </label>
               <input
                 type="number"

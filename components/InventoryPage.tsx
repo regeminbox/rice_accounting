@@ -130,12 +130,12 @@ const InventoryPage: React.FC = () => {
               <div className="space-y-3 mb-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-500">현재 재고</span>
-                  <span className="text-2xl font-black text-slate-800">{product.stock}포</span>
+                  <span className="text-2xl font-black text-slate-800">{product.stock}{product.unit || '포'}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-500">안전재고</span>
-                  <span className="font-bold text-slate-700">{product.safety_stock}포</span>
+                  <span className="font-bold text-slate-700">{product.safety_stock}{product.unit || '포'}</span>
                 </div>
 
                 {/* Stock Progress Bar */}
@@ -226,43 +226,96 @@ const InventoryPage: React.FC = () => {
         })}
       </div>
 
-      {/* Summary Stats */}
+      {/* Summary Stats by Unit */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
         <h4 className="font-bold text-slate-800 mb-4">재고 요약</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              총 재고량
+
+        {/* Unit-based Stats */}
+        {(() => {
+          const unitGroups = products.reduce((acc: any, product) => {
+            const unit = product.unit || '포';
+            if (!acc[unit]) {
+              acc[unit] = [];
+            }
+            acc[unit].push(product);
+            return acc;
+          }, {});
+
+          return (
+            <div className="space-y-6">
+              {Object.entries(unitGroups).map(([unit, unitProducts]: [string, any]) => (
+                <div key={unit} className="border-b border-slate-100 last:border-0 pb-6 last:pb-0">
+                  <h5 className="font-bold text-slate-700 mb-3 text-sm">{unit} 단위 재고</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        {unit} 재고량
+                      </div>
+                      <div className="text-2xl font-black text-slate-800">
+                        {unitProducts.reduce((sum: number, p: any) => sum + p.stock, 0)}{unit}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        {unit} 재고 가치
+                      </div>
+                      <div className="text-xl font-black text-slate-800">
+                        {unitProducts.reduce((sum: number, p: any) => sum + (p.stock * p.cost_price), 0).toLocaleString()}원
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        안전재고 이하
+                      </div>
+                      <div className="text-2xl font-black text-rose-600">
+                        {unitProducts.filter((p: any) => p.stock <= p.safety_stock).length}종
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        정상 재고
+                      </div>
+                      <div className="text-2xl font-black text-emerald-600">
+                        {unitProducts.filter((p: any) => p.stock > p.safety_stock).length}종
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Total Summary */}
+              <div className="bg-gradient-to-br from-indigo-50 to-sky-50 rounded-2xl p-4">
+                <h5 className="font-bold text-indigo-700 mb-3 text-sm">전체 합계</h5>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">
+                      총 재고 가치
+                    </div>
+                    <div className="text-2xl font-black text-indigo-700">
+                      {products.reduce((sum, p) => sum + (p.stock * p.cost_price), 0).toLocaleString()}원
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-2">
+                      안전재고 이하
+                    </div>
+                    <div className="text-2xl font-black text-rose-600">
+                      {products.filter(p => p.stock <= p.safety_stock).length}종
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-2">
+                      정상 재고
+                    </div>
+                    <div className="text-2xl font-black text-emerald-600">
+                      {products.filter(p => p.stock > p.safety_stock).length}종
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-black text-slate-800">
-              {products.reduce((sum, p) => sum + p.stock, 0)}포
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              총 재고 가치
-            </div>
-            <div className="text-2xl font-black text-slate-800">
-              {products.reduce((sum, p) => sum + (p.stock * p.cost_price), 0).toLocaleString()}원
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              안전재고 이하
-            </div>
-            <div className="text-2xl font-black text-rose-600">
-              {products.filter(p => p.stock <= p.safety_stock).length}종
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-              정상 재고
-            </div>
-            <div className="text-2xl font-black text-emerald-600">
-              {products.filter(p => p.stock > p.safety_stock).length}종
-            </div>
-          </div>
-        </div>
+          );
+        })()}
       </div>
 
       {/* Add Product Modal */}
