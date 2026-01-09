@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 
 // IndexedDB 기반 브라우저 데이터베이스
 const DB_NAME = 'RiceShopDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let db: IDBDatabase | null = null;
 
@@ -61,6 +61,14 @@ export const initDatabase = (): Promise<IDBDatabase> => {
         const salesStore = database.createObjectStore('sales', { keyPath: 'id' });
         salesStore.createIndex('date', 'date', { unique: false });
         salesStore.createIndex('customer_id', 'customer_id', { unique: false });
+      }
+
+      // 재고 입출고 이력
+      if (!database.objectStoreNames.contains('inventory_transactions')) {
+        const transactionStore = database.createObjectStore('inventory_transactions', { keyPath: 'id' });
+        transactionStore.createIndex('product_id', 'product_id', { unique: false });
+        transactionStore.createIndex('date', 'date', { unique: false });
+        transactionStore.createIndex('type', 'type', { unique: false });
       }
     };
   });
@@ -414,10 +422,22 @@ export const addMultiItemSale = async (sale: {
         addRequest.onerror = () => rej(addRequest.error);
       });
 
-      // 각 품종별 재고 차감
+      // 각 품종별 재고 차감 및 출고 이력 생성
       const warnings = [];
       for (const item of processedItems) {
         await updateProductStock(item.product_id, -item.quantity);
+
+        // 출고 이력 자동 생성
+        await addInventoryTransaction({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          date: newSale.date,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          type: 'out',
+          notes: `판매 - ${customer.name}`,
+          related_sale_id: newSale.id
+        });
 
         // 안전재고 확인
         const updatedProduct = await getProductByName(item.product_name) as any;
@@ -512,6 +532,18 @@ export const addSale = async (sale: {
       // 재고 차감
       await updateProductStock(product.id, -sale.quantity);
 
+      // 출고 이력 자동 생성
+      await addInventoryTransaction({
+        product_id: product.id,
+        product_name: product.name,
+        date: newSale.date,
+        quantity: sale.quantity,
+        unit_price: sale.unit_price,
+        type: 'out',
+        notes: `판매 - ${customer.name}`,
+        related_sale_id: newSale.id
+      });
+
       // 미결제인 경우 미수금 업데이트
       if (sale.status === '미결제') {
         await updateCustomer(customer.id, { balance: customer.balance + newSale.total_amount });
@@ -563,7 +595,7 @@ export const updateSale = async (saleId: string, updates: {
 
     // 다품종 수정인 경우
     if (updates.items && updates.items.length > 0) {
-      // 기존 재고 복원
+      // 기존 재고 복원 및 출고 이력 삭제
       if (oldSale.is_multi_item && oldSale.items) {
         for (const item of oldSale.items) {
           const product = await getProductByName(item.product_name) as any;
@@ -575,12 +607,20 @@ export const updateSale = async (saleId: string, updates: {
         await updateProductStock(oldSale.product_id, oldSale.quantity);
       }
 
+      // 기존 출고 이력 삭제
+      const existingTransactions = await getInventoryTransactionsByProduct(oldSale.product_id);
+      const relatedTransactions = existingTransactions.filter((t: any) => t.related_sale_id === saleId);
+      for (const trans of relatedTransactions) {
+        await deleteInventoryTransaction(trans.id);
+      }
+
       // 새 품종들 처리 및 재고 차감
       const processedItems = [];
       for (const item of updates.items) {
         const product = await getOrCreateProduct(item.product_name, item.unit_price) as any;
         await updateProductStock(product.id, -item.quantity);
         processedItems.push({
+          product_id: product.id,
           product_name: item.product_name,
           quantity: item.quantity,
           unit_price: item.unit_price,
@@ -626,6 +666,20 @@ export const updateSale = async (saleId: string, updates: {
       oldSale.notes = updates.notes !== undefined ? updates.notes : oldSale.notes;
       oldSale.date = updates.date || oldSale.date;
 
+      // 새 출고 이력 생성
+      for (const item of processedItems) {
+        await addInventoryTransaction({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          date: oldSale.date,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          type: 'out',
+          notes: `판매 - ${customer.name}`,
+          related_sale_id: saleId
+        });
+      }
+
       // 단일 품목 필드는 undefined로 설정
       oldSale.product_id = undefined;
       oldSale.product_name = undefined;
@@ -639,6 +693,7 @@ export const updateSale = async (saleId: string, updates: {
       const quantityChanged = updates.quantity !== undefined && updates.quantity !== oldSale.quantity;
       const statusChanged = updates.status !== undefined && updates.status !== oldSale.status;
       const priceChanged = updates.unit_price !== undefined && updates.unit_price !== oldSale.unit_price;
+      const dateChanged = updates.date !== undefined && updates.date !== oldSale.date;
 
       let newCustomer = null;
       if (customerChanged) {
@@ -658,11 +713,51 @@ export const updateSale = async (saleId: string, updates: {
             await updateProductStock(product.id, item.quantity);
           }
         }
+        // 기존 출고 이력 삭제 (다품종)
+        const allTransactions = await getAllInventoryTransactions() as any[];
+        const relatedTransactions = allTransactions.filter((t: any) => t.related_sale_id === saleId);
+        for (const trans of relatedTransactions) {
+          const transactionStore = database.transaction(['inventory_transactions'], 'readwrite').objectStore('inventory_transactions');
+          transactionStore.delete(trans.id);
+        }
       } else if (productChanged) {
         await updateProductStock(oldSale.product_id, oldSale.quantity);
+        // 기존 출고 이력 삭제 (품종 변경)
+        const existingTransactions = await getInventoryTransactionsByProduct(oldSale.product_id) as any[];
+        const relatedTransactions = existingTransactions.filter((t: any) => t.related_sale_id === saleId);
+        for (const trans of relatedTransactions) {
+          const transactionStore = database.transaction(['inventory_transactions'], 'readwrite').objectStore('inventory_transactions');
+          transactionStore.delete(trans.id);
+        }
       } else if (quantityChanged) {
         const diff = oldSale.quantity - updates.quantity!;
         await updateProductStock(oldSale.product_id, diff);
+        // 출고 이력 수량 업데이트
+        const existingTransactions = await getInventoryTransactionsByProduct(oldSale.product_id) as any[];
+        const relatedTransaction = existingTransactions.find((t: any) => t.related_sale_id === saleId);
+        if (relatedTransaction) {
+          relatedTransaction.quantity = updates.quantity;
+          relatedTransaction.total_cost = updates.quantity * (updates.unit_price || oldSale.unit_price);
+          const transactionStore = database.transaction(['inventory_transactions'], 'readwrite').objectStore('inventory_transactions');
+          transactionStore.put(relatedTransaction);
+        }
+      }
+
+      // 단가나 날짜만 변경된 경우 출고 이력 업데이트
+      if ((priceChanged || dateChanged) && !quantityChanged && !productChanged) {
+        const existingTransactions = await getInventoryTransactionsByProduct(oldSale.product_id) as any[];
+        const relatedTransaction = existingTransactions.find((t: any) => t.related_sale_id === saleId);
+        if (relatedTransaction) {
+          if (priceChanged) {
+            relatedTransaction.unit_price = updates.unit_price;
+            relatedTransaction.total_cost = oldSale.quantity * updates.unit_price;
+          }
+          if (dateChanged) {
+            relatedTransaction.date = updates.date;
+          }
+          const transactionStore = database.transaction(['inventory_transactions'], 'readwrite').objectStore('inventory_transactions');
+          transactionStore.put(relatedTransaction);
+        }
       }
 
       // 새 품종에 재고 차감
@@ -702,6 +797,23 @@ export const updateSale = async (saleId: string, updates: {
       if (productChanged && newProduct) {
         oldSale.product_id = newProduct.id;
         oldSale.product_name = newProduct.name;
+
+        // 새 품종에 대한 출고 이력 생성
+        const finalCustomer = newCustomer || await new Promise<any>(async (resolve) => {
+          const customers = await getAllCustomers() as any[];
+          resolve(customers.find((c: any) => c.id === oldSale.customer_id));
+        });
+
+        await addInventoryTransaction({
+          product_id: newProduct.id,
+          product_name: newProduct.name,
+          date: updates.date || oldSale.date,
+          quantity: updates.quantity || oldSale.quantity,
+          unit_price: updates.unit_price || oldSale.unit_price,
+          type: 'out',
+          notes: `판매 - ${finalCustomer.name}`,
+          related_sale_id: saleId
+        });
       }
       if (updates.quantity !== undefined) oldSale.quantity = updates.quantity;
       if (updates.unit_price !== undefined) oldSale.unit_price = updates.unit_price;
@@ -745,7 +857,27 @@ export const deleteSale = async (saleId: string) => {
     }
 
     // 재고 복원
-    await updateProductStock(sale.product_id, sale.quantity);
+    if (sale.is_multi_item && sale.items) {
+      // 다품종인 경우
+      for (const item of sale.items) {
+        const product = await getProductByName(item.product_name) as any;
+        if (product) {
+          await updateProductStock(product.id, item.quantity);
+        }
+      }
+    } else {
+      // 단일 품종인 경우
+      await updateProductStock(sale.product_id, sale.quantity);
+    }
+
+    // 관련 출고 이력 삭제
+    const allTransactions = await getAllInventoryTransactions() as any[];
+    const relatedTransactions = allTransactions.filter((t: any) => t.related_sale_id === saleId);
+    for (const trans of relatedTransactions) {
+      const transactionTx = database.transaction(['inventory_transactions'], 'readwrite');
+      const transactionStore = transactionTx.objectStore('inventory_transactions');
+      transactionStore.delete(trans.id);
+    }
 
     // 미수금 차감
     if (sale.status === '미결제') {
@@ -980,4 +1112,164 @@ export const createBackup = async () => {
   localStorage.setItem(backupKey, JSON.stringify(backup));
 
   return backupKey;
+};
+
+// ==================== 재고 입출고 이력 관리 ====================
+
+// 재고 이력 추가
+export const addInventoryTransaction = async (transaction: {
+  product_id: string;
+  product_name: string;
+  date: string;
+  quantity: number;
+  unit_price: number;
+  type: 'in' | 'out';
+  notes?: string;
+  related_sale_id?: string; // 판매 기록과 연결 (출고의 경우)
+}) => {
+  const database = await initDatabase();
+
+  const newTransaction = {
+    id: `trans_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    ...transaction,
+    total_cost: transaction.quantity * transaction.unit_price,
+    created_at: new Date().toISOString()
+  };
+
+  return new Promise((resolve, reject) => {
+    const tx = database.transaction(['inventory_transactions'], 'readwrite');
+    const store = tx.objectStore('inventory_transactions');
+    const addRequest = store.add(newTransaction);
+
+    addRequest.onsuccess = () => resolve(newTransaction);
+    addRequest.onerror = () => reject(addRequest.error);
+  });
+};
+
+// 제품별 재고 이력 조회
+export const getInventoryTransactionsByProduct = async (productId: string) => {
+  const database = await initDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(['inventory_transactions'], 'readonly');
+    const store = transaction.objectStore('inventory_transactions');
+    const index = store.index('product_id');
+    const request = index.getAll(productId);
+
+    request.onsuccess = () => {
+      const transactions = request.result;
+      // 날짜 내림차순 정렬 (최신순)
+      transactions.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      resolve(transactions);
+    };
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// 모든 재고 이력 조회
+export const getAllInventoryTransactions = async () => {
+  const database = await initDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(['inventory_transactions'], 'readonly');
+    const store = transaction.objectStore('inventory_transactions');
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const transactions = request.result;
+      transactions.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      resolve(transactions);
+    };
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// 재고 이력 수정
+export const updateInventoryTransaction = async (transactionId: string, updates: {
+  date?: string;
+  quantity?: number;
+  unit_price?: number;
+  notes?: string;
+}) => {
+  const database = await initDatabase();
+
+  try {
+    // 기존 이력 가져오기
+    const oldTransaction = await new Promise<any>((resolve, reject) => {
+      const transaction = database.transaction(['inventory_transactions'], 'readonly');
+      const store = transaction.objectStore('inventory_transactions');
+      const getRequest = store.get(transactionId);
+      getRequest.onsuccess = () => resolve(getRequest.result);
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+
+    if (!oldTransaction) {
+      throw new Error('Transaction not found');
+    }
+
+    // 출고 이력은 수정 불가 (판매 기록과 연결되어 있음)
+    if (oldTransaction.type === 'out') {
+      throw new Error('출고 이력은 수정할 수 없습니다. 판매 기록을 수정해주세요.');
+    }
+
+    // 재고 조정: 이전 수량 복원 + 새 수량 적용
+    if (updates.quantity !== undefined && updates.quantity !== oldTransaction.quantity) {
+      const quantityDiff = updates.quantity - oldTransaction.quantity;
+      await updateProductStock(oldTransaction.product_id, quantityDiff);
+    }
+
+    // 업데이트 적용
+    const updatedTransaction = {
+      ...oldTransaction,
+      ...updates,
+      total_cost: (updates.quantity || oldTransaction.quantity) * (updates.unit_price || oldTransaction.unit_price)
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(['inventory_transactions'], 'readwrite');
+      const store = transaction.objectStore('inventory_transactions');
+      const updateRequest = store.put(updatedTransaction);
+      updateRequest.onsuccess = () => resolve(updatedTransaction);
+      updateRequest.onerror = () => reject(updateRequest.error);
+    });
+  } catch (error) {
+    throw error;
+  }
+};
+
+// 재고 이력 삭제
+export const deleteInventoryTransaction = async (transactionId: string) => {
+  const database = await initDatabase();
+
+  try {
+    // 기존 이력 가져오기
+    const transaction = await new Promise<any>((resolve, reject) => {
+      const tx = database.transaction(['inventory_transactions'], 'readonly');
+      const store = tx.objectStore('inventory_transactions');
+      const getRequest = store.get(transactionId);
+      getRequest.onsuccess = () => resolve(getRequest.result);
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+
+    if (!transaction) {
+      throw new Error('Transaction not found');
+    }
+
+    // 출고 이력은 삭제 불가
+    if (transaction.type === 'out') {
+      throw new Error('출고 이력은 삭제할 수 없습니다. 판매 기록을 삭제해주세요.');
+    }
+
+    // 재고 복원 (입고 취소)
+    await updateProductStock(transaction.product_id, -transaction.quantity);
+
+    // 이력 삭제
+    return new Promise((resolve, reject) => {
+      const tx = database.transaction(['inventory_transactions'], 'readwrite');
+      const store = tx.objectStore('inventory_transactions');
+      const deleteRequest = store.delete(transactionId);
+      deleteRequest.onsuccess = () => resolve(true);
+      deleteRequest.onerror = () => reject(deleteRequest.error);
+    });
+  } catch (error) {
+    throw error;
+  }
 };

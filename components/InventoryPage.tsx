@@ -4,12 +4,14 @@ import { getAllProducts, updateProductStock, deleteProduct, addProduct } from '.
 import { ICONS } from '../constants';
 import EditProductModal from './EditProductModal';
 import AddProductModal from './AddProductModal';
+import InventoryDetailModal from './InventoryDetailModal';
 
 const InventoryPage: React.FC = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<any>(null);
 
   useEffect(() => {
     loadProducts();
@@ -199,6 +201,14 @@ const InventoryPage: React.FC = () => {
                 </button>
               </div>
 
+              {/* Detail Button */}
+              <button
+                onClick={() => setDetailProduct(product)}
+                className="w-full py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl text-xs font-bold shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1 mb-2"
+              >
+                {ICONS.Trending} 입출고 상세
+              </button>
+
               {/* Edit/Delete Buttons */}
               <div className="flex gap-2">
                 <button
@@ -331,6 +341,15 @@ const InventoryPage: React.FC = () => {
         <EditProductModal
           product={editingProduct}
           onClose={() => setEditingProduct(null)}
+          onUpdate={loadProducts}
+        />
+      )}
+
+      {/* Inventory Detail Modal */}
+      {detailProduct && (
+        <InventoryDetailModal
+          product={detailProduct}
+          onClose={() => setDetailProduct(null)}
           onUpdate={loadProducts}
         />
       )}
