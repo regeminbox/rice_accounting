@@ -1136,6 +1136,11 @@ export const addInventoryTransaction = async (transaction: {
     created_at: new Date().toISOString()
   };
 
+  // 입고인 경우 재고 증가
+  if (transaction.type === 'in') {
+    await updateProductStock(transaction.product_id, transaction.quantity);
+  }
+
   return new Promise((resolve, reject) => {
     const tx = database.transaction(['inventory_transactions'], 'readwrite');
     const store = tx.objectStore('inventory_transactions');
