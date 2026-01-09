@@ -121,7 +121,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onAdd }) => 
                 <option value="봉">봉</option>
                 <option value="판">판</option>
                 <option value="개">개</option>
-                <option value="알">알</option>
+                <option value="기타">기타</option>
                 <option value="kg">kg</option>
                 <option value="박스">박스</option>
               </select>

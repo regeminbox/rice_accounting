@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { SaleRecord, OrderStatus } from '../types';
 import { ICONS } from '../constants';
 import { Bot } from 'lucide-react';
+import Pagination from './Pagination';
 
 interface DataTableProps {
   data: SaleRecord[];
@@ -11,15 +12,39 @@ interface DataTableProps {
   onImportClick?: () => void;
   onEditClick?: (record: SaleRecord) => void;
   onDeleteClick?: (record: SaleRecord) => void;
+  showPagination?: boolean; // 페이지네이션 표시 여부
+  itemsPerPage?: number; // 페이지당 항목 수
 }
 
-const DataTable: React.FC<DataTableProps> = ({ data, onRowClick, onAddClick, onImportClick, onEditClick, onDeleteClick }) => {
+const DataTable: React.FC<DataTableProps> = ({
+  data,
+  onRowClick,
+  onAddClick,
+  onImportClick,
+  onEditClick,
+  onDeleteClick,
+  showPagination = true,
+  itemsPerPage = 10
+}) => {
   const [search, setSearch] = useState('');
-  
-  const filteredData = data.filter(item => 
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const filteredData = data.filter(item =>
     item.customerName.toLowerCase().includes(search.toLowerCase()) ||
     item.productName.toLowerCase().includes(search.toLowerCase())
   );
+
+  // 검색어 변경 시 페이지를 1로 리셋
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setCurrentPage(1);
+  };
+
+  // 페이지네이션 계산
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedData = showPagination ? filteredData.slice(startIndex, endIndex) : filteredData;
 
   const getStatusStyle = (status: OrderStatus) => {
     switch (status) {
@@ -82,7 +107,7 @@ const DataTable: React.FC<DataTableProps> = ({ data, onRowClick, onAddClick, onI
             placeholder="거래처, 품종, 날짜로 검색 (Ctrl + F)"
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-2">
@@ -112,7 +137,7 @@ const DataTable: React.FC<DataTableProps> = ({ data, onRowClick, onAddClick, onI
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {filteredData.map((row) => (
+            {paginatedData.map((row) => (
               <tr
                 key={row.id}
                 className={`group transition-colors ${
@@ -174,14 +199,22 @@ const DataTable: React.FC<DataTableProps> = ({ data, onRowClick, onAddClick, onI
         </table>
       </div>
       
-      {/* Table Footer */}
-      <div className="p-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-        <span className="text-xs text-slate-400">총 {filteredData.length}건의 데이터</span>
-        <div className="flex gap-1">
-          <button className="px-3 py-1 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-white transition-colors">이전</button>
-          <button className="px-3 py-1 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-white transition-colors">1</button>
-          <button className="px-3 py-1 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 hover:bg-white transition-colors">다음</button>
+      {/* Pagination */}
+      {showPagination && totalPages > 1 && (
+        <div className="px-4 pb-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         </div>
+      )}
+
+      {/* Table Footer */}
+      <div className="p-4 bg-slate-50/50 border-t border-slate-100">
+        <span className="text-xs text-slate-400">
+          총 {filteredData.length}건의 데이터 {showPagination && totalPages > 1 && `(페이지 ${currentPage}/${totalPages})`}
+        </span>
       </div>
     </div>
   );

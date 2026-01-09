@@ -4,6 +4,7 @@ import { getAllSales, getAllProducts, getAllCustomers, getDashboardStats } from 
 import { getAIInsights } from '../services/geminiService';
 import { ICONS } from '../constants';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import Pagination from './Pagination';
 
 const ReportsPage: React.FC = () => {
   const [sales, setSales] = useState<any[]>([]);
@@ -13,6 +14,8 @@ const ReportsPage: React.FC = () => {
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<'1month' | '1year' | 'all'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     loadData();
@@ -52,8 +55,9 @@ const ReportsPage: React.FC = () => {
   const handleGenerateAIInsights = async () => {
     setIsLoadingAI(true);
     const filteredSales = filterSalesByPeriod(sales);
-    const recentSales = filteredSales.slice(0, 10);
-    const insights = await getAIInsights(products, recentSales);
+    // 필터링된 전체 판매 데이터를 AI에 전달 (최대 10,000개까지)
+    const salesForAI = filteredSales.slice(0, 10000);
+    const insights = await getAIInsights(products, salesForAI);
     setAIInsights(insights);
     setIsLoadingAI(false);
   };
@@ -73,6 +77,11 @@ const ReportsPage: React.FC = () => {
       stock: product.stock
     };
   }).sort((a, b) => b.revenue - a.revenue);
+
+  // 페이지네이션
+  const totalPages = Math.ceil(productSalesData.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedProductData = productSalesData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   // 월별 매출 집계
   const monthlySalesData = (() => {
@@ -285,7 +294,7 @@ const ReportsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {productSalesData.map((item) => {
+              {paginatedProductData.map((item) => {
                 const product = products.find(p => p.name === item.name);
                 const isLowStock = product && product.stock <= product.safety_stock;
 
@@ -321,6 +330,24 @@ const ReportsPage: React.FC = () => {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-6 pb-6">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="p-4 bg-slate-50 border-t border-slate-100">
+          <span className="text-xs text-slate-400">
+            총 {productSalesData.length}개 품종 {totalPages > 1 && `(페이지 ${currentPage}/${totalPages})`}
+          </span>
         </div>
       </div>
 

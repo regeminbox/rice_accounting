@@ -5,6 +5,7 @@ import { ICONS } from '../constants';
 import EditProductModal from './EditProductModal';
 import AddProductModal from './AddProductModal';
 import InventoryDetailModal from './InventoryDetailModal';
+import Pagination from './Pagination';
 
 const InventoryPage: React.FC = () => {
   const [products, setProducts] = useState<any[]>([]);
@@ -12,6 +13,9 @@ const InventoryPage: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [detailProduct, setDetailProduct] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
   useEffect(() => {
     loadProducts();
@@ -72,6 +76,22 @@ const InventoryPage: React.FC = () => {
     );
   }
 
+  // 검색 필터링
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // 페이지네이션
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // 검색어 변경 시 페이지를 1로 리셋
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -98,9 +118,23 @@ const InventoryPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Search Bar */}
+      <div className="relative max-w-md">
+        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
+          {ICONS.Search}
+        </div>
+        <input
+          type="text"
+          placeholder="품종명으로 검색..."
+          className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+        />
+      </div>
+
       {/* Inventory Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((product) => {
+        {paginatedProducts.map((product) => {
           const stockPercentage = product.safety_stock > 0
             ? (product.stock / product.safety_stock) * 100
             : 100;
@@ -235,6 +269,17 @@ const InventoryPage: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      )}
 
       {/* Summary Stats by Unit */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">

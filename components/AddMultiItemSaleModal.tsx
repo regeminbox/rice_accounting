@@ -225,7 +225,7 @@ const AddMultiItemSaleModal: React.FC<AddMultiItemSaleModalProps> = ({ onClose, 
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
                           >
                             <option value="포">포</option>
-                            <option value="알">알</option>
+                            <option value="기타">기타</option>
                             <option value="판">판</option>
                             <option value="개">개</option>
                             <option value="봉">봉</option>
