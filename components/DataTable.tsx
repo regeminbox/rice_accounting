@@ -28,15 +28,36 @@ const DataTable: React.FC<DataTableProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  const filteredData = data.filter(item =>
-    item.customerName.toLowerCase().includes(search.toLowerCase()) ||
-    item.productName.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredData = data.filter(item => {
+    // 텍스트 검색 필터
+    const matchesSearch = item.customerName.toLowerCase().includes(search.toLowerCase()) ||
+      item.productName.toLowerCase().includes(search.toLowerCase());
+
+    // 날짜 필터
+    let matchesDate = true;
+    if (startDate && endDate) {
+      const itemDate = new Date(item.date);
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      matchesDate = itemDate >= start && itemDate <= end;
+    }
+
+    return matchesSearch && matchesDate;
+  });
 
   // 검색어 변경 시 페이지를 1로 리셋
   const handleSearchChange = (value: string) => {
     setSearch(value);
+    setCurrentPage(1);
+  };
+
+  // 날짜 필터 변경 시 페이지를 1로 리셋
+  const handleDateChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
     setCurrentPage(1);
   };
 
@@ -97,30 +118,54 @@ const DataTable: React.FC<DataTableProps> = ({
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
       {/* Table Header / Filter */}
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-4 bg-white sticky top-0 z-10">
-        <div className="relative flex-1 max-w-md">
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-            {ICONS.Search}
+      <div className="p-4 border-b border-slate-100 bg-white sticky top-0 z-10">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="relative flex-1 max-w-md">
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
+              {ICONS.Search}
+            </div>
+            <input
+              type="text"
+              placeholder="거래처, 품종으로 검색"
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+            />
           </div>
-          <input
-            type="text"
-            placeholder="거래처, 품종, 날짜로 검색 (Ctrl + F)"
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onAddClick}
+              className="flex items-center gap-2 px-4 py-2 bg-sky-500 text-white rounded-xl text-sm font-semibold hover:bg-sky-600 transition-all shadow-md shadow-sky-100"
+            >
+              {ICONS.Plus} <span>신규 판매</span>
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-lg transition-colors">
-            {ICONS.Filter}
-          </button>
-          <div className="h-6 w-px bg-slate-200 mx-2" />
-          <button
-            onClick={onAddClick}
-            className="flex items-center gap-2 px-4 py-2 bg-sky-500 text-white rounded-xl text-sm font-semibold hover:bg-sky-600 transition-all shadow-md shadow-sky-100"
-          >
-            {ICONS.Plus} <span>신규 판매</span>
-          </button>
+
+        {/* 날짜 필터 */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-slate-600">날짜 필터:</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => handleDateChange(e.target.value, endDate)}
+            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+          />
+          <span className="text-slate-400">~</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => handleDateChange(startDate, e.target.value)}
+            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+          />
+          {(startDate || endDate) && (
+            <button
+              onClick={() => handleDateChange('', '')}
+              className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
+            >
+              초기화
+            </button>
+          )}
         </div>
       </div>
 

@@ -607,11 +607,13 @@ export const updateSale = async (saleId: string, updates: {
         await updateProductStock(oldSale.product_id, oldSale.quantity);
       }
 
-      // 기존 출고 이력 삭제
-      const existingTransactions = await getInventoryTransactionsByProduct(oldSale.product_id);
-      const relatedTransactions = existingTransactions.filter((t: any) => t.related_sale_id === saleId);
+      // 기존 출고 이력 삭제 (직접 삭제 - 판매 수정 시에만 허용)
+      const allTransactions = await getAllInventoryTransactions() as any[];
+      const relatedTransactions = allTransactions.filter((t: any) => t.related_sale_id === saleId);
       for (const trans of relatedTransactions) {
-        await deleteInventoryTransaction(trans.id);
+        const transactionTx = database.transaction(['inventory_transactions'], 'readwrite');
+        const transactionStore = transactionTx.objectStore('inventory_transactions');
+        transactionStore.delete(trans.id);
       }
 
       // 새 품종들 처리 및 재고 차감
