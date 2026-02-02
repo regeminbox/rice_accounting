@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { updateProduct } from '../services/database';
 import { ICONS } from '../constants';
 import { closeModalWithFocusRestore } from '../utils/focusHelper';
@@ -11,6 +11,7 @@ interface EditProductModalProps {
 }
 
 const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, onUpdate }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const [name, setName] = useState(product.name);
   const [category, setCategory] = useState(product.category);
   const [stock, setStock] = useState(product.stock);
@@ -18,6 +19,15 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
   const [costPrice, setCostPrice] = useState(product.cost_price);
   const [safetyStock, setSafetyStock] = useState(product.safety_stock);
   const [unit, setUnit] = useState(product.unit || '포');
+
+  useEffect(() => {
+    // 모달이 열릴 때 첫 번째 입력 필드에 자동 포커스
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 150);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +92,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
                 품종명 *
               </label>
               <input
+                ref={inputRef}
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}

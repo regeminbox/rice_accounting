@@ -15,10 +15,20 @@ interface EditCustomerModalProps {
 }
 
 const EditCustomerModal: React.FC<EditCustomerModalProps> = ({ customer, onClose, onSave }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const [name, setName] = useState(customer.name);
   const [contact, setContact] = useState(customer.contact || '');
   const [address, setAddress] = useState(customer.address || '');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // 모달이 열릴 때 첫 번째 입력 필드에 자동 포커스
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 150);
+  }, []);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -69,6 +79,7 @@ const EditCustomerModal: React.FC<EditCustomerModalProps> = ({ customer, onClose
               거래처명 <span className="text-rose-500">*</span>
             </label>
             <input
+              ref={inputRef}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}

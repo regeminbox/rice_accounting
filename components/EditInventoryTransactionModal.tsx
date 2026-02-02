@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { updateInventoryTransaction, deleteInventoryTransaction } from '../services/database';
 import { ICONS } from '../constants';
 import { closeModalWithFocusRestore } from '../utils/focusHelper';
@@ -12,10 +12,20 @@ interface EditInventoryTransactionModalProps {
 }
 
 const EditInventoryTransactionModal: React.FC<EditInventoryTransactionModalProps> = ({ transaction, product, onClose, onUpdate }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const [date, setDate] = useState(transaction.date);
   const [quantity, setQuantity] = useState(transaction.quantity);
   const [unitPrice, setUnitPrice] = useState(transaction.unit_price);
   const [notes, setNotes] = useState(transaction.notes || '');
+
+  useEffect(() => {
+    // 모달이 열릴 때 첫 번째 입력 필드에 자동 포커스
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 150);
+  }, []);
 
   const totalCost = quantity * unitPrice;
 
@@ -97,6 +107,7 @@ const EditInventoryTransactionModal: React.FC<EditInventoryTransactionModalProps
               입고 날짜 *
             </label>
             <input
+              ref={inputRef}
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}

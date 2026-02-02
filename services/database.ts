@@ -697,6 +697,9 @@ export const updateSale = async (saleId: string, updates: {
       const priceChanged = updates.unit_price !== undefined && updates.unit_price !== oldSale.unit_price;
       const dateChanged = updates.date !== undefined && updates.date !== oldSale.date;
 
+      // 상태만 변경하는 경우 (다른 필드는 변경하지 않음)
+      const onlyStatusChanged = statusChanged && !customerChanged && !productChanged && !quantityChanged && !priceChanged && !dateChanged;
+
       let newCustomer = null;
       if (customerChanged) {
         newCustomer = await getOrCreateCustomer(updates.customer_name!) as any;
@@ -823,9 +826,15 @@ export const updateSale = async (saleId: string, updates: {
       if (updates.notes !== undefined) oldSale.notes = updates.notes;
       if (updates.date !== undefined) oldSale.date = updates.date;
 
-      oldSale.total_amount = oldSale.quantity * oldSale.unit_price;
-      oldSale.is_multi_item = false;
-      oldSale.items = undefined;
+      // 상태만 변경하는 경우에는 total_amount, is_multi_item, items를 건드리지 않음
+      if (!onlyStatusChanged) {
+        // 단일 품목의 경우 total_amount 재계산
+        if (!oldSale.is_multi_item && oldSale.quantity !== undefined && oldSale.unit_price !== undefined) {
+          oldSale.total_amount = oldSale.quantity * oldSale.unit_price;
+        }
+        oldSale.is_multi_item = false;
+        oldSale.items = undefined;
+      }
     }
 
     // 업데이트 저장

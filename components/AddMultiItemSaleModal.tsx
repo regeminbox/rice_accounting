@@ -26,6 +26,7 @@ const AddMultiItemSaleModal: React.FC<AddMultiItemSaleModalProps> = ({ onClose, 
 
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const customerInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -35,6 +36,13 @@ const AddMultiItemSaleModal: React.FC<AddMultiItemSaleModalProps> = ({ onClose, 
       setCustomers(customersData);
     };
     loadData();
+
+    // 모달이 열릴 때 거래처명 입력 필드에 자동 포커스
+    setTimeout(() => {
+      if (customerInputRef.current) {
+        customerInputRef.current.focus();
+      }
+    }, 150);
   }, []);
 
   const addItem = () => {
@@ -134,6 +142,7 @@ const AddMultiItemSaleModal: React.FC<AddMultiItemSaleModalProps> = ({ onClose, 
                 거래처명 *
               </label>
               <input
+                ref={customerInputRef}
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}

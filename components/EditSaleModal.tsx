@@ -11,6 +11,7 @@ interface EditSaleModalProps {
 }
 
 const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const [customerName, setCustomerName] = useState(sale.customer_name);
   const [date, setDate] = useState(sale.date || new Date().toISOString().split('T')[0]);
   const [isMultiItem, setIsMultiItem] = useState(sale.is_multi_item || false);
@@ -41,6 +42,13 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
       setCustomers(customersData);
     };
     loadData();
+
+    // 모달이 열릴 때 첫 번째 입력 필드에 자동 포커스
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 150);
   }, []);
 
   const addItem = () => {
@@ -166,6 +174,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
                 거래처명 *
               </label>
               <input
+                ref={inputRef}
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}

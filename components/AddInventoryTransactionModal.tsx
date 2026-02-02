@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { addInventoryTransaction } from '../services/database';
 import { ICONS } from '../constants';
 import { closeModalWithFocusRestore } from '../utils/focusHelper';
@@ -11,10 +11,20 @@ interface AddInventoryTransactionModalProps {
 }
 
 const AddInventoryTransactionModal: React.FC<AddInventoryTransactionModalProps> = ({ product, onClose, onAdd }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [quantity, setQuantity] = useState(0);
   const [unitPrice, setUnitPrice] = useState(product.cost_price || 0);
   const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    // 모달이 열릴 때 첫 번째 입력 필드에 자동 포커스
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 150);
+  }, []);
 
   const totalCost = quantity * unitPrice;
 
@@ -96,6 +106,7 @@ const AddInventoryTransactionModal: React.FC<AddInventoryTransactionModalProps> 
               수량 ({product.unit || '포'}) *
             </label>
             <input
+              ref={inputRef}
               type="number"
               value={quantity}
               onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
