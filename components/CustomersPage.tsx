@@ -4,6 +4,7 @@ import { getAllCustomers, getAllSales, resetAllBalances } from '../services/data
 import { ICONS } from '../constants';
 import EditCustomerModal from './EditCustomerModal';
 import Pagination from './Pagination';
+import UnpaidManagementModal from './UnpaidManagementModal';
 
 const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -16,6 +17,7 @@ const CustomersPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [detailStartDate, setDetailStartDate] = useState('');
   const [detailEndDate, setDetailEndDate] = useState('');
+  const [showUnpaidManagement, setShowUnpaidManagement] = useState(false);
   const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
@@ -85,10 +87,10 @@ const CustomersPage: React.FC = () => {
       });
     }
 
-    const totalSales = customerSales.reduce((sum, s) => sum + s.total_amount, 0);
+    const totalSales = customerSales.reduce((sum, s) => sum + (s.total_amount || 0), 0);
     const totalOrders = customerSales.length;
     const unpaidSales = customerSales.filter(s => s.status === '미결제');
-    const unpaidAmount = unpaidSales.reduce((sum, s) => sum + s.total_amount, 0);
+    const unpaidAmount = unpaidSales.reduce((sum, s) => sum + (s.total_amount || 0), 0);
 
     return {
       totalSales,
@@ -246,21 +248,29 @@ const CustomersPage: React.FC = () => {
             </div>
           </div>
           <div className="text-3xl font-black text-emerald-600">
-            {filterSalesByPeriod(sales).reduce((sum, s) => sum + s.total_amount, 0).toLocaleString()}원
+            {filterSalesByPeriod(sales).reduce((sum, s) => sum + (s.total_amount || 0), 0).toLocaleString()}원
           </div>
         </div>
 
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-rose-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
-              {ICONS.Alert}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
+                {ICONS.Alert}
+              </div>
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                {selectedPeriod === 'all' ? '총 미수금' : '기간 미수금'}
+              </div>
             </div>
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              {selectedPeriod === 'all' ? '총 미수금' : '기간 미수금'}
-            </div>
+            <button
+              onClick={() => setShowUnpaidManagement(true)}
+              className="px-3 py-1.5 bg-rose-500 text-white rounded-lg text-xs font-bold hover:bg-rose-600 transition-colors shadow-sm"
+            >
+              관리
+            </button>
           </div>
           <div className="text-3xl font-black text-rose-600">
-            {filterSalesByPeriod(sales).filter(s => s.status === '미결제').reduce((sum, s) => sum + s.total_amount, 0).toLocaleString()}원
+            {filterSalesByPeriod(sales).filter(s => s.status === '미결제').reduce((sum, s) => sum + (s.total_amount || 0), 0).toLocaleString()}원
           </div>
         </div>
       </div>
@@ -551,6 +561,14 @@ const CustomersPage: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* Unpaid Management Modal */}
+      {showUnpaidManagement && (
+        <UnpaidManagementModal
+          onClose={() => setShowUnpaidManagement(false)}
+          onUpdate={loadData}
+        />
+      )}
     </div>
   );
 };
