@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { updateProduct } from '../services/database';
 import { ICONS } from '../constants';
+import { closeModalWithFocusRestore } from '../utils/focusHelper';
 
 interface EditProductModalProps {
   product: any;
@@ -44,7 +45,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
 
       alert('품종 정보가 수정되었습니다.');
       await onUpdate();
-      onClose();
+      closeModalWithFocusRestore(onClose);
     } catch (error: any) {
       alert(`수정 실패: ${error.message}`);
       console.error('수정 에러:', error);
@@ -64,7 +65,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
               <h2 className="text-xl font-bold">품종 정보 수정</h2>
             </div>
             <button
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors"
             >
               ✕
@@ -195,7 +196,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
           <div className="flex gap-3 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="flex-1 py-3 px-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors"
             >
               취소

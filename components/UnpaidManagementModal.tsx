@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getAllSales, updateSale, getAllCustomers } from '../services/database';
 import { ICONS } from '../constants';
 import Pagination from './Pagination';
+import { closeModalWithFocusRestore } from '../utils/focusHelper';
 
 interface UnpaidManagementModalProps {
   onClose: () => void;
@@ -101,7 +102,7 @@ const UnpaidManagementModal: React.FC<UnpaidManagementModalProps> = ({ onClose, 
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="w-10 h-10 rounded-xl hover:bg-white/10 flex items-center justify-center transition-colors"
             >
               ✕
@@ -265,7 +266,7 @@ const UnpaidManagementModal: React.FC<UnpaidManagementModalProps> = ({ onClose, 
             총 {filteredSales.length}건의 미결제 주문 {totalPages > 1 && `(페이지 ${currentPage}/${totalPages})`}
           </span>
           <button
-            onClick={onClose}
+            onClick={() => closeModalWithFocusRestore(onClose)}
             className="px-4 py-2 bg-slate-600 text-white rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors"
           >
             닫기

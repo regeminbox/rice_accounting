@@ -527,7 +527,7 @@ const App: React.FC = () => {
 
           {activeTab === 'inventory' && <InventoryPage />}
 
-          {activeTab === 'customers' && <CustomersPage />}
+          {activeTab === 'customers' && <CustomersPage onUpdate={loadData} />}
 
           {activeTab === 'reports' && <ReportsPage />}
         </div>

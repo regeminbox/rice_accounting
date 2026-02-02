@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { updateInventoryTransaction, deleteInventoryTransaction } from '../services/database';
 import { ICONS } from '../constants';
+import { closeModalWithFocusRestore } from '../utils/focusHelper';
 
 interface EditInventoryTransactionModalProps {
   transaction: any;
@@ -41,7 +42,7 @@ const EditInventoryTransactionModal: React.FC<EditInventoryTransactionModalProps
 
       alert('입고 기록이 수정되었습니다.');
       await onUpdate();
-      onClose();
+      closeModalWithFocusRestore(onClose);
     } catch (error: any) {
       alert(`수정 실패: ${error.message}`);
       console.error('입고 기록 수정 에러:', error);
@@ -57,7 +58,7 @@ const EditInventoryTransactionModal: React.FC<EditInventoryTransactionModalProps
       await deleteInventoryTransaction(transaction.id);
       alert('입고 기록이 삭제되었습니다.');
       await onUpdate();
-      onClose();
+      closeModalWithFocusRestore(onClose);
     } catch (error: any) {
       alert(`삭제 실패: ${error.message}`);
       console.error('입고 기록 삭제 에러:', error);
@@ -80,7 +81,7 @@ const EditInventoryTransactionModal: React.FC<EditInventoryTransactionModalProps
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors"
             >
               ✕
@@ -172,7 +173,7 @@ const EditInventoryTransactionModal: React.FC<EditInventoryTransactionModalProps
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="flex-1 py-3 px-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors"
             >
               취소

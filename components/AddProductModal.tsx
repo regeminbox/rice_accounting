@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { ICONS } from '../constants';
+import { closeModalWithFocusRestore } from '../utils/focusHelper';
 
 interface AddProductModalProps {
   onClose: () => void;
@@ -47,7 +48,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onAdd }) => 
       unit
     });
 
-    onClose();
+    closeModalWithFocusRestore(onClose);
   };
 
   return (
@@ -63,7 +64,7 @@ const AddProductModal: React.FC<AddProductModalProps> = ({ onClose, onAdd }) => 
               <h2 className="text-xl font-bold">품종 추가</h2>
             </div>
             <button
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors"
             >
               ✕

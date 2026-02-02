@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAllProducts, getAllCustomers } from '../services/database';
 import { ICONS } from '../constants';
+import { closeModalWithFocusRestore } from '../utils/focusHelper';
 
 interface AddMultiItemSaleModalProps {
   onClose: () => void;
@@ -100,7 +101,7 @@ const AddMultiItemSaleModal: React.FC<AddMultiItemSaleModalProps> = ({ onClose, 
       date
     });
 
-    onClose();
+    closeModalWithFocusRestore(onClose);
   };
 
   return (
@@ -116,7 +117,7 @@ const AddMultiItemSaleModal: React.FC<AddMultiItemSaleModalProps> = ({ onClose, 
               <h2 className="text-xl font-bold">판매 기록 추가 (다품종)</h2>
             </div>
             <button
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors"
             >
               ✕

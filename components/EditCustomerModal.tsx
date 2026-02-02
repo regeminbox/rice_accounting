@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { updateCustomer } from '../services/database';
+import { closeModalWithFocusRestore } from '../utils/focusHelper';
 
 interface EditCustomerModalProps {
   customer: {
@@ -36,7 +37,7 @@ const EditCustomerModal: React.FC<EditCustomerModalProps> = ({ customer, onClose
 
       alert('거래처 정보가 저장되었습니다.');
       onSave();
-      onClose();
+      closeModalWithFocusRestore(onClose);
     } catch (error: any) {
       alert(`저장 실패: ${error.message}`);
     } finally {
@@ -54,7 +55,7 @@ const EditCustomerModal: React.FC<EditCustomerModalProps> = ({ customer, onClose
             <p className="text-sm text-slate-500 mt-1">거래처 연락처와 주소를 입력하세요</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => closeModalWithFocusRestore(onClose)}
             className="text-slate-400 hover:text-slate-600 text-2xl font-light"
           >
             ×
@@ -112,7 +113,7 @@ const EditCustomerModal: React.FC<EditCustomerModalProps> = ({ customer, onClose
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
           <button
-            onClick={onClose}
+            onClick={() => closeModalWithFocusRestore(onClose)}
             className="px-6 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all"
             disabled={isLoading}
           >

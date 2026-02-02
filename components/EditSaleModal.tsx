@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAllProducts, getAllCustomers, updateSale } from '../services/database';
 import { ICONS } from '../constants';
+import { closeModalWithFocusRestore } from '../utils/focusHelper';
 
 interface EditSaleModalProps {
   sale: any;
@@ -128,7 +129,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
 
       alert('판매 기록이 수정되었습니다.');
       await onUpdate();
-      onClose();
+      closeModalWithFocusRestore(onClose);
     } catch (error: any) {
       alert(`수정 실패: ${error.message}`);
       console.error('수정 에러:', error);
@@ -148,7 +149,7 @@ const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onUpdate }
               <h2 className="text-xl font-bold">판매 기록 수정</h2>
             </div>
             <button
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors"
             >
               ✕

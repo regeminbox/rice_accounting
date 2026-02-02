@@ -5,8 +5,13 @@ import { ICONS } from '../constants';
 import EditCustomerModal from './EditCustomerModal';
 import Pagination from './Pagination';
 import UnpaidManagementModal from './UnpaidManagementModal';
+import { fixNaNSales } from '../services/fixNaNSales';
 
-const CustomersPage: React.FC = () => {
+interface CustomersPageProps {
+  onUpdate?: () => void;
+}
+
+const CustomersPage: React.FC<CustomersPageProps> = ({ onUpdate }) => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,6 +37,11 @@ const CustomersPage: React.FC = () => {
     setCustomers(customersData);
     setSales(salesData);
     setIsLoading(false);
+
+    // 부모 컴포넌트(App.tsx)의 대시보드 데이터도 업데이트
+    if (onUpdate) {
+      await onUpdate();
+    }
   };
 
   const handleResetBalances = async () => {
@@ -45,6 +55,20 @@ const CustomersPage: React.FC = () => {
       await loadData();
     } catch (error: any) {
       alert(`재계산 실패: ${error.message}`);
+    }
+  };
+
+  const handleFixNaNData = async () => {
+    if (!confirm('NaN 데이터를 수정/삭제하시겠습니까?\n복구 가능한 데이터는 수정하고, 불가능한 데이터는 삭제됩니다.')) {
+      return;
+    }
+
+    try {
+      const result: any = await fixNaNSales();
+      alert(result.message);
+      await loadData();
+    } catch (error: any) {
+      alert(`데이터 복구 실패: ${error.message}`);
     }
   };
 
@@ -156,12 +180,20 @@ const CustomersPage: React.FC = () => {
             총 {totalCustomers}개 거래처
           </p>
         </div>
-        <button
-          onClick={handleResetBalances}
-          className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 hover:bg-emerald-600 transition-all"
-        >
-          {ICONS.Trending} 미수금 재계산
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleFixNaNData}
+            className="px-4 py-2 bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 hover:bg-amber-600 transition-all"
+          >
+            {ICONS.Alert} 데이터 복구
+          </button>
+          <button
+            onClick={handleResetBalances}
+            className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm flex items-center gap-2 hover:bg-emerald-600 transition-all"
+          >
+            {ICONS.Trending} 미수금 재계산
+          </button>
+        </div>
       </div>
 
       {/* Period Filter */}
@@ -270,7 +302,7 @@ const CustomersPage: React.FC = () => {
             </button>
           </div>
           <div className="text-3xl font-black text-rose-600">
-            {filterSalesByPeriod(sales).filter(s => s.status === '미결제').reduce((sum, s) => sum + (s.total_amount || 0), 0).toLocaleString()}원
+            {customers.reduce((sum, c) => sum + (c.balance || 0), 0).toLocaleString()}원
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { addInventoryTransaction } from '../services/database';
 import { ICONS } from '../constants';
+import { closeModalWithFocusRestore } from '../utils/focusHelper';
 
 interface AddInventoryTransactionModalProps {
   product: any;
@@ -43,7 +44,7 @@ const AddInventoryTransactionModal: React.FC<AddInventoryTransactionModalProps> 
 
       alert('입고 기록이 추가되었습니다.');
       await onAdd();
-      onClose();
+      closeModalWithFocusRestore(onClose);
     } catch (error: any) {
       alert(`추가 실패: ${error.message}`);
       console.error('입고 기록 추가 에러:', error);
@@ -66,7 +67,7 @@ const AddInventoryTransactionModal: React.FC<AddInventoryTransactionModalProps> 
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors"
             >
               ✕
@@ -151,7 +152,7 @@ const AddInventoryTransactionModal: React.FC<AddInventoryTransactionModalProps> 
           <div className="flex gap-3 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => closeModalWithFocusRestore(onClose)}
               className="flex-1 py-3 px-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-colors"
             >
               취소
