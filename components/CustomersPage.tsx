@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getAllCustomers, getAllSales, resetAllBalances } from '../services/database';
+import { getAllCustomers, getAllSales, resetAllBalances, getPaymentHistory } from '../services/database';
 import { ICONS } from '../constants';
 import EditCustomerModal from './EditCustomerModal';
 import Pagination from './Pagination';
@@ -23,6 +23,8 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onUpdate }) => {
   const [detailStartDate, setDetailStartDate] = useState('');
   const [detailEndDate, setDetailEndDate] = useState('');
   const [showUnpaidManagement, setShowUnpaidManagement] = useState(false);
+  const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
+  const [paymentHistoryCache, setPaymentHistoryCache] = useState<{ [key: string]: any[] }>({});
   const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
@@ -538,51 +540,119 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onUpdate }) => {
             <div>
               <h4 className="font-bold text-slate-700 mb-4">최근 거래 내역</h4>
               <div className="space-y-2">
-                {stats.recentSales.map((sale: any) => (
-                  <div
-                    key={sale.id}
-                    className="flex items-center justify-between p-4 bg-slate-50 rounded-xl"
-                  >
-                    <div className="flex-1">
-                      {sale.is_multi_item && sale.items ? (
-                        <>
-                          <div className="font-bold text-slate-800">다품종 주문</div>
-                          <div className="text-xs text-slate-500 mt-1">
-                            {sale.items.map((item: any, idx: number) => (
-                              <div key={idx}>
-                                • {item.product_name} {item.quantity}{item.unit || '개'} × {item.unit_price.toLocaleString()}원
+                {stats.recentSales.map((sale: any) => {
+                  const isExpanded = expandedSaleId === sale.id;
+                  const history = paymentHistoryCache[sale.id] || [];
+                  const hasPaid = (sale.paid_amount || 0) > 0;
+                  const remaining = (sale.total_amount || 0) - (sale.paid_amount || 0);
+
+                  return (
+                    <div key={sale.id} className="rounded-xl overflow-hidden border border-slate-200">
+                      {/* 메인 행 */}
+                      <div
+                        className={`flex items-center justify-between p-4 cursor-pointer transition-colors ${
+                          isExpanded ? 'bg-sky-50' : 'bg-slate-50 hover:bg-slate-100'
+                        }`}
+                        onClick={async () => {
+                          if (expandedSaleId === sale.id) {
+                            setExpandedSaleId(null);
+                            return;
+                          }
+                          setExpandedSaleId(sale.id);
+                          if (!paymentHistoryCache[sale.id]) {
+                            const h = await getPaymentHistory(sale.id) as any[];
+                            setPaymentHistoryCache(prev => ({ ...prev, [sale.id]: h }));
+                          }
+                        }}
+                      >
+                        <div className="flex-1">
+                          {sale.is_multi_item && sale.items ? (
+                            <>
+                              <div className="font-bold text-slate-800">다품종 주문</div>
+                              <div className="text-xs text-slate-500 mt-1">
+                                {sale.items.map((item: any, idx: number) => (
+                                  <div key={idx}>
+                                    • {item.product_name} {item.quantity}{item.unit || '개'} × {item.unit_price.toLocaleString()}원
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            </>
+                          ) : (
+                            <>
+                              <div className="font-bold text-slate-800">{sale.product_name}</div>
+                              <div className="text-xs text-slate-500 mt-1">
+                                {sale.quantity}포 × {sale.unit_price?.toLocaleString() || 0}원
+                              </div>
+                            </>
+                          )}
+                          <div className="text-xs text-slate-400 mt-1">{sale.date}</div>
+                        </div>
+                        <div className="text-right mr-4">
+                          <div className="text-sm font-bold text-slate-600">
+                            합계: {(sale.total_amount || 0).toLocaleString()}원
                           </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="font-bold text-slate-800">{sale.product_name}</div>
-                          <div className="text-xs text-slate-500 mt-1">
-                            {sale.quantity}포 × {sale.unit_price?.toLocaleString() || 0}원
-                          </div>
-                        </>
-                      )}
-                      <div className="text-xs text-slate-400 mt-1">{sale.date}</div>
-                    </div>
-                    <div className="text-right mr-4">
-                      <div className="text-sm font-bold text-slate-600">
-                        합계: {sale.total_amount.toLocaleString()}원
+                          {hasPaid && sale.status === '미결제' && (
+                            <div className="text-xs text-rose-500 mt-0.5">
+                              남은: {remaining.toLocaleString()}원
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-3 py-1 rounded-lg text-xs font-bold ${
+                            sale.status === '결제완료'
+                              ? 'bg-emerald-50 text-emerald-600'
+                              : sale.status === '미결제'
+                              ? 'bg-rose-50 text-rose-600'
+                              : 'bg-amber-50 text-amber-600'
+                          }`}>
+                            {sale.status}
+                          </span>
+                          {/* 수금 이력이 있으면 표시 아이콘 */}
+                          {hasPaid && (
+                            <span className="text-xs text-emerald-600">💰</span>
+                          )}
+                        </div>
                       </div>
+
+                      {/* 펼친 수금 이력 */}
+                      {isExpanded && (
+                        <div className="px-4 py-3 bg-white border-t border-slate-100">
+                          {history.length > 0 ? (
+                            <div>
+                              <div className="text-xs font-bold text-slate-500 mb-2">수금 이력</div>
+                              <div className="space-y-1">
+                                {history.map((h: any) => (
+                                  <div key={h.id} className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-2">
+                                    <span className="text-xs text-slate-500">{h.date}</span>
+                                    <span className="text-sm font-bold text-emerald-600">{h.amount.toLocaleString()}원</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                                <span className="text-xs font-bold text-slate-600">누적 수금</span>
+                                <span className="text-sm font-bold text-emerald-700">
+                                  {history.reduce((sum: number, h: any) => sum + h.amount, 0).toLocaleString()}원
+                                </span>
+                              </div>
+                              {sale.status === '미결제' && (
+                                <div className="flex items-center justify-between mt-1">
+                                  <span className="text-xs font-bold text-slate-600">남은 미수금</span>
+                                  <span className="text-sm font-bold text-rose-600">
+                                    {remaining.toLocaleString()}원
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-slate-400 text-center py-2">
+                              {sale.status === '결제완료' ? '일시금 결제로 완료된 주문입니다.' : '수금 이력이 없습니다.'}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <span className={`px-3 py-1 rounded-lg text-xs font-bold ${
-                        sale.status === '결제완료'
-                          ? 'bg-emerald-50 text-emerald-600'
-                          : sale.status === '미결제'
-                          ? 'bg-rose-50 text-rose-600'
-                          : 'bg-amber-50 text-amber-600'
-                      }`}>
-                        {sale.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {stats.recentSales.length === 0 && (
                   <div className="text-center py-8 text-slate-400">
                     거래 내역이 없습니다.

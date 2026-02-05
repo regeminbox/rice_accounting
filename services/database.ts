@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 
 // IndexedDB 기반 브라우저 데이터베이스
 const DB_NAME = 'RiceShopDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let db: IDBDatabase | null = null;
 
@@ -69,6 +69,14 @@ export const initDatabase = (): Promise<IDBDatabase> => {
         transactionStore.createIndex('product_id', 'product_id', { unique: false });
         transactionStore.createIndex('date', 'date', { unique: false });
         transactionStore.createIndex('type', 'type', { unique: false });
+      }
+
+      // 수금 이력 (부분 수금 기록)
+      if (!database.objectStoreNames.contains('payment_history')) {
+        const paymentStore = database.createObjectStore('payment_history', { keyPath: 'id' });
+        paymentStore.createIndex('sale_id', 'sale_id', { unique: false });
+        paymentStore.createIndex('customer_id', 'customer_id', { unique: false });
+        paymentStore.createIndex('date', 'date', { unique: false });
       }
     };
   });
@@ -911,6 +919,104 @@ export const deleteSale = async (saleId: string) => {
   } catch (error) {
     throw error;
   }
+};
+
+// ==================== 부분 수금 관리 ====================
+
+// 수금 기록 저장 및 미수금 차감
+export const recordPayment = async (saleId: string, amount: number, paymentDate: string) => {
+  const database = await initDatabase();
+
+  // 판매 기록 조회
+  const sale = await new Promise<any>((resolve, reject) => {
+    const transaction = database.transaction(['sales'], 'readonly');
+    const store = transaction.objectStore('sales');
+    const getRequest = store.get(saleId);
+    getRequest.onsuccess = () => resolve(getRequest.result);
+    getRequest.onerror = () => reject(getRequest.error);
+  });
+
+  if (!sale) {
+    throw new Error('판매 기록을 찾을 수 없습니다.');
+  }
+
+  if (sale.status !== '미결제') {
+    throw new Error('이미 결제된 판매 기록입니다.');
+  }
+
+  // 남은 미수금 계산 (total_amount - 기존 paid_amount)
+  const currentPaid = sale.paid_amount || 0;
+  const remaining = sale.total_amount - currentPaid;
+
+  if (amount <= 0) {
+    throw new Error('수금 금액은 0보다 커야 합니다.');
+  }
+
+  if (amount > remaining) {
+    throw new Error(`남은 미수금(${remaining.toLocaleString()}원)보다 큰 금액을 입력하셨습니다.`);
+  }
+
+  // 수금 이력 저장
+  const paymentRecord = {
+    id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    sale_id: saleId,
+    customer_id: sale.customer_id,
+    amount,
+    date: paymentDate,
+    created_at: new Date().toISOString()
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction(['payment_history'], 'readwrite');
+    const store = tx.objectStore('payment_history');
+    const addRequest = store.add(paymentRecord);
+    addRequest.onsuccess = () => resolve();
+    addRequest.onerror = () => reject(addRequest.error);
+  });
+
+  // 판매 기록의 paid_amount 업데이트
+  const newPaid = currentPaid + amount;
+  const newRemaining = sale.total_amount - newPaid;
+
+  sale.paid_amount = newPaid;
+  // 남은 금액이 0이면 결제완료로 변경
+  if (newRemaining <= 0) {
+    sale.status = '결제완료';
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = database.transaction(['sales'], 'readwrite');
+    const store = tx.objectStore('sales');
+    const putRequest = store.put(sale);
+    putRequest.onsuccess = () => resolve();
+    putRequest.onerror = () => reject(putRequest.error);
+  });
+
+  // 거래처 미수금(balance) 차감
+  const customers = await getAllCustomers() as any[];
+  const customer = customers.find((c: any) => c.id === sale.customer_id);
+  if (customer) {
+    await updateCustomer(customer.id, { balance: Math.max(0, customer.balance - amount) });
+  }
+
+  return {
+    paid_amount: newPaid,
+    remaining: newRemaining,
+    status: sale.status
+  };
+};
+
+// 특정 판매 기록의 수금 이력 조회
+export const getPaymentHistory = async (saleId: string) => {
+  const database = await initDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = database.transaction(['payment_history'], 'readonly');
+    const store = tx.objectStore('payment_history');
+    const index = store.index('sale_id');
+    const request = index.getAll(saleId);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
 };
 
 // 미수금 리셋 및 재계산 (모든 판매 기록을 기반으로 미수금 재계산)
