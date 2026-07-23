@@ -2,14 +2,19 @@
 import React, { useState } from 'react';
 import { SaleRecord, OrderStatus } from '../types';
 import { ICONS } from '../constants';
-import { Bot } from 'lucide-react';
+import { Bot, Printer, FileDown, FileUp } from 'lucide-react';
 import Pagination from './Pagination';
+import { printSalesReport } from '../utils/printService';
+import { format } from 'date-fns';
+
+type SortKey = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc';
 
 interface DataTableProps {
   data: SaleRecord[];
   onRowClick?: (record: SaleRecord) => void;
   onAddClick?: () => void;
-  onImportClick?: () => void;
+  onImportClick?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onExportClick?: () => void;
   onEditClick?: (record: SaleRecord) => void;
   onDeleteClick?: (record: SaleRecord) => void;
   showPagination?: boolean; // 페이지네이션 표시 여부
@@ -21,6 +26,7 @@ const DataTable: React.FC<DataTableProps> = ({
   onRowClick,
   onAddClick,
   onImportClick,
+  onExportClick,
   onEditClick,
   onDeleteClick,
   showPagination = true,
@@ -30,6 +36,8 @@ const DataTable: React.FC<DataTableProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('date_desc');
 
   const filteredData = data.filter(item => {
     // 텍스트 검색 필터
@@ -45,8 +53,36 @@ const DataTable: React.FC<DataTableProps> = ({
       matchesDate = itemDate >= start && itemDate <= end;
     }
 
-    return matchesSearch && matchesDate;
+    // 상태 필터
+    const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+
+    return matchesSearch && matchesDate && matchesStatus;
+  }).sort((a, b) => {
+    switch (sortKey) {
+      case 'date_asc': return a.date.localeCompare(b.date);
+      case 'amount_desc': return b.totalAmount - a.totalAmount;
+      case 'amount_asc': return a.totalAmount - b.totalAmount;
+      case 'date_desc':
+      default: return b.date.localeCompare(a.date);
+    }
   });
+
+  // 요약 통계
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const todayCount = data.filter(item => item.date === today).length;
+  const filteredTotal = filteredData.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+  const filteredUnpaid = filteredData
+    .filter(item => item.status === OrderStatus.UNPAID)
+    .reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+
+  const handlePrint = () => {
+    const periodLabel = startDate && endDate ? `${startDate} ~ ${endDate}` : '전체 기간';
+    const statusLabel = statusFilter === 'all' ? '' : ` (${statusFilter})`;
+    printSalesReport(filteredData, {
+      title: `판매 내역${statusLabel}`,
+      periodLabel
+    });
+  };
 
   // 검색어 변경 시 페이지를 1로 리셋
   const handleSearchChange = (value: string) => {
@@ -134,6 +170,36 @@ const DataTable: React.FC<DataTableProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all"
+              title="현재 필터된 판매 내역을 인쇄합니다"
+            >
+              <Printer size={16} /> <span>인쇄</span>
+            </button>
+            {onExportClick && (
+              <button
+                onClick={onExportClick}
+                className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all"
+                title="판매 내역을 엑셀 파일로 저장합니다"
+              >
+                <FileDown size={16} /> <span>엑셀 내보내기</span>
+              </button>
+            )}
+            {onImportClick && (
+              <label
+                className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all cursor-pointer"
+                title="엑셀 파일에서 판매 내역을 가져옵니다"
+              >
+                <FileUp size={16} /> <span>엑셀 가져오기</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={onImportClick}
+                  className="hidden"
+                />
+              </label>
+            )}
+            <button
               onClick={onAddClick}
               className="flex items-center gap-2 px-4 py-2 bg-sky-500 text-white rounded-xl text-sm font-semibold hover:bg-sky-600 transition-all shadow-md shadow-sky-100"
             >
@@ -142,8 +208,8 @@ const DataTable: React.FC<DataTableProps> = ({
           </div>
         </div>
 
-        {/* 날짜 필터 */}
-        <div className="flex items-center gap-3">
+        {/* 날짜/상태/정렬 필터 */}
+        <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs font-bold text-slate-600">날짜 필터:</span>
           <input
             type="date"
@@ -166,6 +232,44 @@ const DataTable: React.FC<DataTableProps> = ({
               초기화
             </button>
           )}
+
+          <span className="text-xs font-bold text-slate-600 ml-2">상태:</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as 'all' | OrderStatus);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+          >
+            <option value="all">전체</option>
+            {Object.values(OrderStatus).map((status) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+
+          <span className="text-xs font-bold text-slate-600 ml-2">정렬:</span>
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+          >
+            <option value="date_desc">최신순</option>
+            <option value="date_asc">오래된순</option>
+            <option value="amount_desc">금액 높은순</option>
+            <option value="amount_asc">금액 낮은순</option>
+          </select>
+        </div>
+
+        {/* 요약 바 */}
+        <div className="flex items-center gap-4 mt-3 px-3 py-2 bg-sky-50/50 border border-sky-100 rounded-xl text-xs font-bold flex-wrap">
+          <span className="text-sky-700">오늘 {todayCount}건</span>
+          <span className="text-slate-300">|</span>
+          <span className="text-slate-600">조회 결과 {filteredData.length}건</span>
+          <span className="text-slate-300">|</span>
+          <span className="text-slate-600">합계 {filteredTotal.toLocaleString()}원</span>
+          <span className="text-slate-300">|</span>
+          <span className="text-rose-600">미결제 {filteredUnpaid.toLocaleString()}원</span>
         </div>
       </div>
 
@@ -174,6 +278,7 @@ const DataTable: React.FC<DataTableProps> = ({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50/50">
+              <th className="px-4 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 w-16 text-center">번호</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">일자</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">거래처</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">합계 금액</th>
@@ -182,13 +287,16 @@ const DataTable: React.FC<DataTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {paginatedData.map((row) => (
+            {paginatedData.map((row, idx) => (
               <tr
                 key={row.id}
                 className={`group transition-colors ${
                   row.status === OrderStatus.UNPAID ? 'bg-rose-50/30' : 'hover:bg-slate-50'
                 }`}
               >
+                <td className="px-4 py-4 text-sm text-slate-400 font-medium text-center">
+                  {(showPagination ? startIndex : 0) + idx + 1}
+                </td>
                 <td className="px-6 py-4 text-sm text-slate-500 font-medium">{row.date}</td>
                 <td className="px-6 py-4">
                   <div className="text-sm font-bold text-slate-800">{row.customerName}</div>

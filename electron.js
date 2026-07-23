@@ -1,8 +1,44 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
 
 let mainWindow;
+
+// Windows에서 window.alert()/confirm() 사용 시 대화상자가 닫힌 후
+// 웹뷰가 키보드 포커스를 잃는 Electron 버그가 있어서,
+// 렌더러의 alert/confirm을 메인 프로세스의 dialog로 대체하고 닫힌 뒤 포커스를 복원한다.
+function refocusMainWindow() {
+  if (!mainWindow) return;
+  mainWindow.blur();
+  mainWindow.focus();
+  mainWindow.webContents.focus();
+}
+
+ipcMain.on('dialog:alert', (event, message) => {
+  dialog.showMessageBoxSync(mainWindow, {
+    type: 'info',
+    title: '알림',
+    message: String(message ?? ''),
+    buttons: ['확인'],
+    noLink: true,
+  });
+  refocusMainWindow();
+  event.returnValue = true;
+});
+
+ipcMain.on('dialog:confirm', (event, message) => {
+  const result = dialog.showMessageBoxSync(mainWindow, {
+    type: 'question',
+    title: '확인',
+    message: String(message ?? ''),
+    buttons: ['확인', '취소'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  refocusMainWindow();
+  event.returnValue = result === 0;
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({

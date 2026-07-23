@@ -508,6 +508,7 @@ const App: React.FC = () => {
                   data={sales}
                   onAddClick={() => setShowAddSaleModal(true)}
                   onImportClick={handleImportSales}
+                  onExportClick={handleExportSales}
                   onEditClick={handleEditSale}
                   onDeleteClick={handleDeleteSale}
                 />
@@ -520,6 +521,7 @@ const App: React.FC = () => {
               data={sales}
               onAddClick={() => setShowAddSaleModal(true)}
               onImportClick={handleImportSales}
+              onExportClick={handleExportSales}
               onEditClick={handleEditSale}
               onDeleteClick={handleDeleteSale}
             />
