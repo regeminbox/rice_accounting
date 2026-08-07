@@ -13,12 +13,14 @@
 ### 대시보드
 당일 매출, 미수금, 신규 주문, 재고 부족 품종을 한 화면에서 확인합니다.
 
-![대시보드](docs/screenshots/01-dashboard.png)
+<img width="595" height="392" alt="image" src="https://github.com/user-attachments/assets/b5fd89dc-89f4-4301-b710-9c9d309b76b5" />
+
 
 ### 판매기록
 기간 · 상태 · 거래처로 조건을 좁히면 상단 요약(건수 · 합계 · 미결제)이 함께 따라 바뀝니다.
 
-![판매기록](docs/screenshots/02-sales.png)
+<img width="597" height="394" alt="image" src="https://github.com/user-attachments/assets/47599ae6-578d-4e33-844b-a460938aff44" />
+
 
 > 화면의 거래처 · 금액은 기능 설명을 위한 예시 데이터입니다.
 
